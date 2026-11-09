@@ -1,0 +1,10 @@
+# Keep this environment separate from the desktop backend.
+# Install torch first from https://download.pytorch.org/whl/cu128.
+torch>=2.7,<3
+transformers>=4.51,<5
+peft>=0.15,<1
+accelerate>=1.5,<2
+bitsandbytes>=0.45,<1
+safetensors>=0.5,<1
+psutil>=6,<8
+pytest>=8,<10

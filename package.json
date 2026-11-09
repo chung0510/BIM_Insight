@@ -1,26 +1,50 @@
 {
   "name": "bim_insight",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.12.0",
   "type": "module",
+  "workspaces": [
+    "frontend"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
-  },
-  "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "dev": "node scripts/dev.mjs",
+    "start": "npm run build && node scripts/dev.mjs --preview",
+    "dev:ui": "npm run dev --workspace @bim-insight/frontend",
+    "build": "npm run build --workspace @bim-insight/frontend",
+    "build:backend": "node scripts/build-backend.mjs",
+    "build:desktop": "npm run build && npm run build:backend",
+    "preview": "npm run preview --workspace @bim-insight/frontend",
+    "test:ui": "node frontend/tests/smoke.mjs",
+    "test:inspection": "node frontend/tests/inspection.mjs",
+    "test:coordination": "node frontend/tests/coordination.mjs",
+    "test:clash": "node frontend/tests/clash.mjs",
+    "test:clash-stream": "node --experimental-strip-types frontend/tests/clash-stream.mjs",
+    "test:inspection-stream": "node --experimental-strip-types frontend/tests/inspection-stream.mjs",
+    "test:inspection-memory": "node frontend/tests/inspection-memory.mjs",
+    "test:cache-permissions": "node frontend/tests/inspection-memory.mjs --cache-permissions",
+    "test:project-lifecycle": "node frontend/tests/inspection-memory.mjs --lifecycle",
+    "test:clash-progress": "node frontend/tests/clash-progress.mjs",
+    "test:native": "node frontend/tests/inspection-native.mjs",
+    "test:projects": "node frontend/tests/projects.mjs",
+    "test:project-offline": "node frontend/tests/project-offline.mjs",
+    "test:ai-ui": "node frontend/tests/ai-ui.mjs",
+    "test:conclusions": "node frontend/tests/inspection-memory.mjs --conclusions",
+    "test:projects-native": "node frontend/tests/projects-native.mjs",
+    "tauri": "tauri",
+    "test:accounts": "node frontend/tests/accounts.mjs",
+    "test:sharing": "node frontend/tests/sharing.mjs",
+    "test:account-session": "node frontend/tests/account-session.mjs",
+    "test:residence-geometry": "node --experimental-strip-types frontend/tests/residence-geometry.mjs",
+    "test:residences": "node --experimental-strip-types frontend/tests/residences.mjs",
+    "test:profile-gestures": "node frontend/tests/profile-gestures.mjs",
+    "test:account-provisioning": "node frontend/tests/account-provisioning.mjs",
+    "test:project-open": "node frontend/tests/project-open.mjs",
+    "test:capacity": "node frontend/tests/capacity.mjs",
+    "test:dwg-real": "node frontend/tests/dwg-real.mjs"
   },
   "devDependencies": {
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^6.0.2",
-    "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "@tauri-apps/cli": "^2"
+    "@playwright/test": "^1.64.1",
+    "@tauri-apps/cli": "^2",
+    "vite": "^8.0.16"
   }
 }

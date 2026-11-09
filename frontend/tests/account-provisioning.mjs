@@ -1,0 +1,103 @@
+import {chromium,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {signIn,TEST_PASSWORD} from './account-helper.mjs';
+
+assert.equal(process.env.BIM_UI_TEST,'1');
+const root=resolve(`data/artifacts/accounts-0110/browser-${Date.now()}`);await mkdir(root,{recursive:true});
+const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
+const page=await browser.newPage({viewport:{width:1440,height:900}});
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
+const stamp=Date.now(),teacherCode=`00${stamp}`,teacherEmail=`ui-teacher-${stamp}@example.org`,studentCode=`000${stamp}`,studentEmail=`ui-student-${stamp}@example.org`;
+const run=promisify(execFile),python=resolve('.venv/Scripts/python.exe');
+async function readExcel(path){const result=await run(python,['-c','import sys,json;from openpyxl import load_workbook;b=load_workbook(sys.argv[1]);print(json.dumps(list(b.active.values)));b.close()',path],{windowsHide:true});return JSON.parse(result.stdout);}
+async function fixture(filename,rows){const path=resolve(root,filename);await run(python,['-c','import sys,json;from openpyxl import Workbook;b=Workbook();s=b.active\nfor row in json.loads(sys.argv[1]): s.append(row)\nb.save(sys.argv[2]);b.close()',JSON.stringify(rows),path],{windowsHide:true});return path;}
+async function login(identifier,password){await page.getByLabel('Tên đăng nhập',{exact:true}).fill(identifier);await page.getByLabel('Mật khẩu',{exact:true}).fill(password);const response=page.waitForResponse(r=>/\/api\/auth\/login$/.test(r.url())&&r.request().method()==='POST');await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();const result=await response;assert.equal(result.ok(),true,'Real login must succeed');return result.json();}
+async function emailCode(recipient){let value;await expect.poll(async()=>{const text=await readFile(resolve('data/artifacts/accounts-0110/ui-data/test-outbox.jsonl'),'utf8').catch(()=>'');value=text.trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)).filter(item=>item.to===recipient).at(-1)?.code;return !!value;}).toBe(true);return value;}
+try{
+  await page.goto('http://127.0.0.1:1420/');await signIn(page);
+  for(const viewport of [{width:1440,height:600},{width:1440,height:720},{width:1440,height:900},{width:844,height:390},{width:812,height:375}]){
+    const {height}=viewport;await page.setViewportSize(viewport);
+    assert.equal(await page.locator('.work-sidebar').evaluate(sidebar=>sidebar.scrollHeight<=sidebar.clientHeight+1),true,`All sidebar functions fit without scrolling at ${viewport.width}x${height}`);
+    const profile=await page.getByRole('button',{name:'Tài khoản của tôi',exact:true}).boundingBox();assert.ok(profile.y+profile.height<=height);
+  }
+  await page.setViewportSize({width:1440,height:900});
+  await page.screenshot({path:resolve(root,'sidebar-fit.png')});
+  await page.getByRole('navigation').getByRole('button',{name:'Tài khoản',exact:true}).click();
+  await page.getByRole('button',{name:'Cấp tài khoản',exact:true}).click();
+  const provision=page.getByRole('region',{name:'Cấp tài khoản giảng viên và sinh viên'});
+  await provision.getByLabel('Họ và tên',{exact:true}).fill('Nguyễn Văn A');
+  await provision.getByLabel('Mã giảng viên hoặc sinh viên',{exact:true}).fill(teacherCode);
+  await provision.getByLabel('Email tài khoản',{exact:true}).fill(teacherEmail);
+  const downloadEvent=page.waitForEvent('download');
+  await provision.getByRole('button',{name:'Cấp tài khoản và tải Excel',exact:true}).click();
+  const download=await downloadEvent;await download.saveAs(resolve(root,'single-accounts.xlsx'));
+  await expect(provision.getByRole('status')).toContainText('Đã cấp 1');
+  assert.equal((await readFile(resolve(root,'single-accounts.xlsx'))).subarray(0,2).toString(),'PK');
+  const single=await readExcel(resolve(root,'single-accounts.xlsx')),temporary=single[1][single[0].indexOf('Mật khẩu tạm')];assert.equal(single[1][1],teacherCode);assert.ok(temporary.length>=12);
+  await page.screenshot({path:resolve(root,'admin-provision.png'),fullPage:true});
+  await provision.getByRole('button',{name:'Import Excel',exact:true}).click();
+  const columns=['Họ và tên','Mã giảng viên','Mã sinh viên','email','Đơn vị'];
+  const invalid=await fixture('invalid.xlsx',[columns,['GV B',teacherCode+'1','',`bulk-gv-${stamp}@example.org`,'Khoa Xây dựng'],['SV C','',teacherCode+'1',studentEmail,'Khoa Xây dựng']]);
+  await provision.getByLabel('File Excel cấp tài khoản',{exact:true}).setInputFiles(invalid);
+  await expect(provision.getByRole('alert')).toContainText('trùng');
+  await expect(provision.getByRole('button',{name:/Cấp 2 tài khoản và tải Excel/})).toBeDisabled();
+  const valid=await fixture('mixed-roles.xlsx',[columns,['GV B',teacherCode+'1','',`bulk-gv-${stamp}@example.org`,'Khoa Xây dựng'],['SV C','',studentCode,studentEmail,'Khoa Xây dựng']]);
+  await provision.getByLabel('File Excel cấp tài khoản',{exact:true}).setInputFiles(valid);
+  await expect(provision.getByRole('button',{name:'Cấp 2 tài khoản và tải Excel',exact:true})).toBeEnabled();
+  const bulkEvent=page.waitForEvent('download');await provision.getByRole('button',{name:'Cấp 2 tài khoản và tải Excel',exact:true}).click();await(await bulkEvent).saveAs(resolve(root,'bulk-accounts.xlsx'));
+  const bulk=await readExcel(resolve(root,'bulk-accounts.xlsx'));assert.deepEqual(bulk[0].slice(0,5),columns);assert.equal(bulk[2][2],studentCode);
+  const studentTemporary=bulk[2][bulk[0].indexOf('Mật khẩu tạm')];assert.notEqual(studentTemporary,temporary);
+  await page.screenshot({path:resolve(root,'bulk-preview.png'),fullPage:true});
+  await page.getByRole('button',{name:'Email khôi phục',exact:true}).click();
+  const settings=page.getByRole('form',{name:'Thiết lập Gmail'});
+  await settings.getByLabel('Gmail gửi thư',{exact:true}).fill('ui-sender@gmail.com');
+  await settings.getByLabel('Mật khẩu ứng dụng Gmail',{exact:true}).fill('abcdefghijklmnop');
+  await settings.getByRole('button',{name:'Lưu và kiểm tra Gmail',exact:true}).click();
+  await expect(settings.getByRole('status')).toContainText('thành công');await expect(settings.getByLabel('Mật khẩu ứng dụng Gmail',{exact:true})).toHaveValue('');
+  await page.screenshot({path:resolve(root,'gmail-settings.png'),fullPage:true});
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();
+  const firstSession=await login(teacherCode,temporary);
+  await expect(page.getByRole('heading',{name:'Đổi mật khẩu lần đầu',exact:true})).toBeVisible();
+  assert.equal(await page.getByRole('navigation').count(),0);
+  assert.equal(await page.evaluate(async token=>(await fetch('/api/projects',{headers:{'X-BIM-Session':token}})).status,firstSession.session_token),403);
+  const firstForm=page.getByRole('form',{name:'Đổi mật khẩu lần đầu'}),changed='Teacher-new-password-123!';
+  await expect(firstForm.getByLabel('Mật khẩu tạm',{exact:true})).toHaveValue(temporary);
+  await firstForm.getByLabel('Mật khẩu mới',{exact:true}).fill(changed);await firstForm.getByLabel('Xác nhận mật khẩu mới',{exact:true}).fill(changed);
+  await firstForm.getByRole('button',{name:'Đổi mật khẩu và tiếp tục',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Không gian rà soát hồ sơ',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await login(teacherEmail,changed);
+  await expect(page.getByRole('heading',{name:'Không gian rà soát hồ sơ',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await page.getByRole('button',{name:'Quên mật khẩu?',exact:true}).click();
+  const recovery=page.getByRole('form',{name:'Khôi phục mật khẩu'});
+  await recovery.getByLabel('Mã hoặc email',{exact:true}).fill(teacherEmail);await recovery.getByRole('button',{name:'Gửi mã khôi phục',exact:true}).click();
+  await expect(recovery.getByLabel('Mã xác nhận',{exact:true})).toBeVisible();const code=await emailCode(teacherEmail),recovered='Teacher-recovered-password-123!';
+  await recovery.getByLabel('Mã xác nhận',{exact:true}).fill(code==='000000'?'999999':'000000');await recovery.getByLabel('Mật khẩu mới',{exact:true}).fill(recovered);await recovery.getByLabel('Xác nhận mật khẩu mới',{exact:true}).fill(recovered);
+  await recovery.getByRole('button',{name:'Đặt lại mật khẩu',exact:true}).click();await expect(recovery.getByRole('alert')).toContainText('Mã xác nhận');
+  await recovery.getByLabel('Mã xác nhận',{exact:true}).fill(code);await recovery.getByRole('button',{name:'Đặt lại mật khẩu',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Đã đặt lại mật khẩu');await page.screenshot({path:resolve(root,'recovery-complete.png')});
+  await page.getByRole('button',{name:'Về đăng nhập',exact:true}).click();await login(teacherCode,recovered);
+  await expect(page.getByRole('heading',{name:'Không gian rà soát hồ sơ',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await signIn(page,'uiuser');await page.getByRole('button',{name:'Tài khoản của tôi',exact:true}).click();
+  const verify=page.getByRole('form',{name:'Xác nhận email tài khoản'}),userEmail=`ui-user-${stamp}@example.org`;
+  await verify.getByLabel('Email đăng nhập',{exact:true}).fill(userEmail);await verify.getByRole('button',{name:'Gửi mã xác nhận email',exact:true}).click();
+  await expect(verify.getByLabel('Mã xác nhận email',{exact:true})).toBeVisible();await verify.getByLabel('Mã xác nhận email',{exact:true}).fill(await emailCode(userEmail));
+  await verify.getByRole('button',{name:'Xác nhận email',exact:true}).click();await expect(verify.getByRole('status')).toContainText('Đã xác nhận');
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await login(userEmail,TEST_PASSWORD);await expect(page.getByRole('heading',{name:'Không gian dự án BIM',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await login(studentCode,studentTemporary);
+  await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:resolve(root,'student-forced-password-375.png'),fullPage:true});
+  await page.setViewportSize({width:1440,height:900});
+  let release,started;const held=new Promise(done=>release=done),pending=new Promise(done=>started=done);
+  await page.route('**/api/auth/password',async route=>{const response=await route.fetch();started();await held;await route.fulfill({response}).catch(()=>{});});
+  const studentForm=page.getByRole('form',{name:'Đổi mật khẩu lần đầu'});
+  await studentForm.getByLabel('Mật khẩu mới',{exact:true}).fill('Student-changed-password-123!');await studentForm.getByLabel('Xác nhận mật khẩu mới',{exact:true}).fill('Student-changed-password-123!');
+  await studentForm.getByRole('button',{name:'Đổi mật khẩu và tiếp tục',exact:true}).click();await pending;
+  await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await signIn(page,'uiuser');release();await page.waitForTimeout(250);
+  await expect(page.getByRole('heading',{name:'Không gian dự án BIM',exact:true})).toBeVisible();await page.unroute('**/api/auth/password');
+  assert.deepEqual(errors,[]);
+  await writeFile(resolve(root,'result.json'),JSON.stringify({status:'passed',root,mail:'synthetic SMTP outbox only; no real email sent',checks:['sidebar fits 600/720/900','admin single provisioning','mixed-role Excel preview/validation/export','leading zero codes and original columns','unique temporary passwords','Gmail configuration and cleared secret','mandatory first change and API restriction','code and email login','wrong-code error and successful recovery','self-email verification','375px forced-password layout','late forced-password response cannot restore logged-out account','no runtime errors']},null,2));console.log(JSON.stringify({status:'passed',root}));
+}catch(error){await page.screenshot({path:resolve(root,'failure.png'),fullPage:true}).catch(()=>{});throw error;}finally{await browser.close();}

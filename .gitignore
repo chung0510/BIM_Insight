@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+build/
 *.local
 
 # Environment and private signing keys
@@ -27,8 +28,33 @@ dist-ssr
 .cache/
 *.tsbuildinfo
 coverage/
+.coverage
+.coverage.*
+htmlcov/
+test-results/
+playwright-report/
+blob-report/
+artifacts/
 .nyc_output/
 *.rs.bk
+
+# Local BIM processing, databases and AI artifacts
+.venv/
+.venv-ai/
+.local/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+/src-tauri/binaries/
+
+# Local agent tooling
+/.agents/skills/
 
 # Editor directories and files
 .vscode/*

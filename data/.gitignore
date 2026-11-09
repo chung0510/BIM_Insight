@@ -1,0 +1,6 @@
+# Local BIM files, model weights, reports and credentials stay on this machine.
+*
+!.gitignore
+!inputs/
+inputs/*
+!inputs/.gitkeep
