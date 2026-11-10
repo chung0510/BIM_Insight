@@ -26,7 +26,6 @@ try{
   }
   await page.setViewportSize({width:1440,height:900});
   await page.screenshot({path:resolve(root,'sidebar-fit.png')});
-  await page.getByRole('navigation').getByRole('button',{name:'Tài khoản',exact:true}).click();
   await page.getByRole('button',{name:'Cấp tài khoản',exact:true}).click();
   const provision=page.getByRole('region',{name:'Cấp tài khoản giảng viên và sinh viên'});
   await provision.getByLabel('Họ và tên',{exact:true}).fill('Nguyễn Văn A');
@@ -52,7 +51,7 @@ try{
   const bulk=await readExcel(resolve(root,'bulk-accounts.xlsx'));assert.deepEqual(bulk[0].slice(0,5),columns);assert.equal(bulk[2][2],studentCode);
   const studentTemporary=bulk[2][bulk[0].indexOf('Mật khẩu tạm')];assert.notEqual(studentTemporary,temporary);
   await page.screenshot({path:resolve(root,'bulk-preview.png'),fullPage:true});
-  await page.getByRole('button',{name:'Email khôi phục',exact:true}).click();
+  await page.getByRole('button',{name:'Cấu hình dịch vụ',exact:true}).click();
   const settings=page.getByRole('form',{name:'Thiết lập Gmail'});
   await settings.getByLabel('Gmail gửi thư',{exact:true}).fill('ui-sender@gmail.com');
   await settings.getByLabel('Mật khẩu ứng dụng Gmail',{exact:true}).fill('abcdefghijklmnop');
@@ -68,9 +67,9 @@ try{
   await expect(firstForm.getByLabel('Mật khẩu tạm',{exact:true})).toHaveValue(temporary);
   await firstForm.getByLabel('Mật khẩu mới',{exact:true}).fill(changed);await firstForm.getByLabel('Xác nhận mật khẩu mới',{exact:true}).fill(changed);
   await firstForm.getByRole('button',{name:'Đổi mật khẩu và tiếp tục',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Không gian rà soát hồ sơ',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Không gian giảng dạy BIM',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await login(teacherEmail,changed);
-  await expect(page.getByRole('heading',{name:'Không gian rà soát hồ sơ',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Không gian giảng dạy BIM',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await page.getByRole('button',{name:'Quên mật khẩu?',exact:true}).click();
   const recovery=page.getByRole('form',{name:'Khôi phục mật khẩu'});
   await recovery.getByLabel('Mã hoặc email',{exact:true}).fill(teacherEmail);await recovery.getByRole('button',{name:'Gửi mã khôi phục',exact:true}).click();
@@ -80,7 +79,7 @@ try{
   await recovery.getByLabel('Mã xác nhận',{exact:true}).fill(code);await recovery.getByRole('button',{name:'Đặt lại mật khẩu',exact:true}).click();
   await expect(page.getByRole('status')).toContainText('Đã đặt lại mật khẩu');await page.screenshot({path:resolve(root,'recovery-complete.png')});
   await page.getByRole('button',{name:'Về đăng nhập',exact:true}).click();await login(teacherCode,recovered);
-  await expect(page.getByRole('heading',{name:'Không gian rà soát hồ sơ',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Không gian giảng dạy BIM',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await signIn(page,'uiuser');await page.getByRole('button',{name:'Tài khoản của tôi',exact:true}).click();
   const verify=page.getByRole('form',{name:'Xác nhận email tài khoản'}),userEmail=`ui-user-${stamp}@example.org`;
   await verify.getByLabel('Email đăng nhập',{exact:true}).fill(userEmail);await verify.getByRole('button',{name:'Gửi mã xác nhận email',exact:true}).click();

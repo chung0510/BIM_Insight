@@ -103,6 +103,40 @@ def test_web_rejects_other_origins_and_hosts(web_client):
     assert response.headers["access-control-allow-origin"] == ORIGIN
 
 
+def test_static_frontend_origin_preserves_api_host_and_auth(web_client, monkeypatch):
+    from app.web import create_web_app
+
+    frontend_origin = "https://bim-insight-static.example.org"
+    monkeypatch.setenv("BIM_FRONTEND_ORIGIN", frontend_origin)
+    with TestClient(create_web_app(), base_url=ORIGIN) as client:
+        preflight = client.options("/api/auth/login", headers={"Origin": frontend_origin,
+                                   "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "Content-Type,X-BIM-Session"})
+        assert preflight.status_code == 200
+        assert preflight.headers["access-control-allow-origin"] == frontend_origin
+        assert client.get("/api/health").status_code == 200
+        assert client.get("/api/health", headers={"Host": "untrusted.example"}).status_code == 400
+        assert client.get("/api/projects", headers={"Origin": frontend_origin}).status_code == 401
+        signed_in = client.post("/api/auth/login", headers={"Origin": frontend_origin},
+                                json={"username": "webadmin", "password": TEST_PASSWORD})
+        assert signed_in.status_code == 200
+        headers = {"Origin": frontend_origin, "X-BIM-Session": signed_in.json()["session_token"]}
+        assert client.post("/api/projects", headers=headers, json={"name": "Static origin project"}).status_code == 201
+        assert client.post("/api/auth/login", headers={"Origin": ORIGIN},
+                           json={"username": "webadmin", "password": TEST_PASSWORD}).status_code == 200
+        assert client.get("/api/health", headers={"Origin": "https://other-static.example.org"}).status_code == 403
+        assert client.post("/api/auth/bootstrap", headers={"Origin": frontend_origin}, json={}).status_code == 403
+
+
+@pytest.mark.parametrize("origin", ["*", "https://user:password@example.org", "https://example.org/path", "http://example.org", "https://example.org?query=1"])
+def test_static_frontend_origin_is_validated_before_startup(origin, monkeypatch):
+    from app.web import create_web_app
+
+    monkeypatch.setenv("BIM_WEB_ORIGIN", ORIGIN)
+    monkeypatch.setenv("BIM_FRONTEND_ORIGIN", origin)
+    with pytest.raises(ValueError, match="origin"):
+        create_web_app()
+
+
 def test_existing_desktop_still_requires_local_token(tmp_path):
     with TestClient(create_app(api_token=TOKEN, data_dir=tmp_path), base_url="http://127.0.0.1") as client:
         assert client.get("/api/health").status_code == 200

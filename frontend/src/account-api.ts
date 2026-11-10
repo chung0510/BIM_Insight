@@ -7,8 +7,8 @@ export type PersonalProfile = {user:Account;email:string;phone:string;organizati
 export const roleLabels: Record<AccountRole, string> = { admin: "Quản trị viên", teacher: "Giảng viên", student: "Sinh viên", user: "Người dùng" };
 export const roleDescriptions: Record<AccountRole, string> = {
   admin: "Quản lý tài khoản, phân quyền và theo dõi hệ thống. Các dự án cá nhân vẫn có quyền truy cập riêng.",
-  teacher: "Rà soát hồ sơ được chia sẻ, ghi nhận xét và làm việc với dự án riêng.",
-  student: "Thực hành trên mô hình, lưu bằng chứng và chia sẻ dự án để nhận góp ý.",
+  teacher: "Quản lý lớp thực hành, giao bài có tiêu chí, đối chiếu minh chứng và công bố điểm, phản hồi.",
+  student: "Theo dõi lớp tham gia, đọc yêu cầu bài, tự kiểm tra mô hình, nộp minh chứng và xem phản hồi đã công bố.",
   user: "Phân tích hồ sơ BIM, kiểm tra xung đột và quản lý các dự án cá nhân.",
 };
 let currentAccount: Account | null = null;

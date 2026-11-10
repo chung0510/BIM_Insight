@@ -28,14 +28,14 @@ try {
     await fillIdentity('Quản trị thử nghiệm','uiadmin');
     await page.getByRole('button',{name:'Tạo tài khoản quản trị',exact:true}).click();
     await expect(page.getByRole('button',{name:'Đăng xuất',exact:true})).toBeVisible();
-    await expect(page.getByRole('navigation').getByRole('button',{name:'Tài khoản',exact:true})).toBeVisible();
+    await expect(page.getByRole('navigation').getByRole('button',{name:'Tài khoản và phân quyền',exact:true})).toBeVisible();
     await expect(page.getByText('Khóa học',{exact:true})).toHaveCount(0);
     await page.screenshot({path:resolve(root,'admin-home.png')});
     await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();
     await page.getByRole('button',{name:'Tạo tài khoản',exact:true}).click();
     await fillIdentity('Người dùng thử nghiệm','uiuser');
     await page.getByRole('button',{name:'Đăng ký tài khoản',exact:true}).click();
-    await expect(page.getByRole('navigation').getByRole('button',{name:'Tài khoản',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('navigation').getByRole('button',{name:'Tài khoản và phân quyền',exact:true})).toHaveCount(0);
     await page.getByRole('button',{name:'Kiểm tra hồ sơ',exact:true}).click();
     const projects=page.getByRole('region',{name:'Quản lý dự án và lịch sử'});
     if(!await projects.isVisible()) await page.getByText('Dự án và lịch sử',{exact:true}).click();
@@ -58,7 +58,7 @@ try {
       await expect(page.getByRole('button',{name:'Đăng xuất',exact:true})).toBeVisible();
     };
     await login('uiadmin');
-    await page.getByRole('navigation').getByRole('button',{name:'Tài khoản',exact:true}).click();
+    await page.getByRole('navigation').getByRole('button',{name:'Tài khoản và phân quyền',exact:true}).click();
     for(const [username,role] of [['uiteacher','teacher'],['uistudent','student']]) {
       await page.getByLabel(`Vai trò của ${username}`,{exact:true}).selectOption(role);
       await page.getByRole('button',{name:`Lưu vai trò của ${username}`,exact:true}).click();
@@ -67,6 +67,7 @@ try {
     await page.screenshot({path:resolve(root,'admin-users.png')});
     await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();
     await login('uiteacher');
+    await page.locator('.work-personal-nav>summary').click();
     await expect(page.getByRole('button',{name:'Hồ sơ được chia sẻ',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'Kiểm tra hồ sơ',exact:true}).click();
     await expect(page.getByRole('option',{name:'Dự án riêng của uiuser',exact:true})).toHaveCount(0);

@@ -1,0 +1,20 @@
+# Static frontend only. Keep the existing API service and its database/secrets.
+services:
+  - type: web
+    name: bim-insight-web
+    runtime: static
+    branch: deploy/render-demo
+    autoDeployTrigger: commit
+    buildCommand: npm ci && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+      - key: VITE_API_BASE_URL
+        value: https://bim-insight-demon.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

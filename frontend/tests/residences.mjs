@@ -58,8 +58,9 @@ try {
   await page.getByRole('button',{name:'Về đăng nhập',exact:true}).click();
   await page.emulateMedia({reducedMotion:'no-preference'});
   await signIn(page);
-  await expect(page.locator('.work-hero .residence')).toHaveAttribute('data-residence','glass');
-  const surfaces=[['Kiểm tra hồ sơ','inspection'],['Thư viện bản vẽ','drawings'],['Mô hình minh họa','models'],['Sổ tay dự án','notes'],['Tài khoản','accounts'],['Tài khoản của tôi','account']];
+  await expect(page.locator('.work-page-residence .residence')).toHaveAttribute('data-residence','glass');
+  await page.locator('.work-personal-nav>summary').click();
+  const surfaces=[['Kiểm tra hồ sơ','inspection'],['Thư viện bản vẽ','drawings'],['Mô hình minh họa','models'],['Sổ tay dự án','notes'],['Tài khoản và phân quyền','accounts'],['Tài khoản của tôi','account']];
   for(const [label,id] of surfaces) {
     await page.getByRole('button',{name:label,exact:true}).click();
     await expect(page.locator('.work-page-residence .residence')).toHaveAttribute('data-residence',screenModels[id]);
@@ -82,8 +83,8 @@ try {
   }
   for(const [username,variant] of [['uiteacher','tugendhat'],['uistudent','eames'],['uiuser','stahl']]) {
     await page.getByRole('button',{name:'Đăng xuất',exact:true}).click();await signIn(page,username);
-    await expect(page.locator('.work-hero .residence')).toHaveAttribute('data-residence',variant);
-    if(username==='uiteacher') {await page.getByRole('button',{name:'Hồ sơ được chia sẻ',exact:true}).click();await expect(page.locator('.work-page-residence .residence')).toHaveAttribute('data-residence','schroder');await page.getByRole('button',{name:'Tổng quan',exact:true}).click();}
+    await expect(page.locator(username==='uiuser'?'.work-hero .residence':'.work-page-residence .residence')).toHaveAttribute('data-residence',variant);
+    if(username==='uiteacher') {await page.locator('.work-personal-nav>summary').click();await page.getByRole('button',{name:'Hồ sơ được chia sẻ',exact:true}).click();await expect(page.locator('.work-page-residence .residence')).toHaveAttribute('data-residence','schroder');await page.getByRole('button',{name:'Tổng quan giảng dạy',exact:true}).click();}
     await page.screenshot({path:resolve(output,`${username}-desktop.png`),fullPage:true});
   }
   for(const width of [375,561,640,768,801,850,870,900]) {

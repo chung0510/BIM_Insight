@@ -160,10 +160,24 @@ class AccessStore:
         self.audit(self.actor["id"], "profile_updated", self.actor["id"])
         return self.profile(updated)
 
-    def users(self, offset, limit):
+    def users(self, offset, limit, query='', role=None, status=None):
         self.require_admin()
         ids = self.admins()
-        return {"items": [self.public(user, ids) for user in self.db.auth_users.find({}).sort([("created_at", 1), ("_id", 1)]).skip(offset).limit(limit)], "total": self.db.auth_users.count_documents({}), "offset": offset, "limit": limit}
+        where = {}
+        if query:
+            pattern = {'$regex':re.escape(query),'$options':'i'}
+            where['$or'] = [{field:pattern} for field in ['username','display_name','identity_code','login_email']]
+        if role == 'admin':
+            where['_id'] = {'$in':ids}
+        elif role:
+            where.update(role=role,_id={'$nin':ids})
+        if status == 'disabled':
+            where['disabled'] = True
+        elif status in {'active','pending'}:
+            where['disabled'] = {'$ne':True}
+            if status == 'pending':
+                where['must_change_password'] = True
+        return {"items": [self.public(user, ids) for user in self.db.auth_users.find(where).sort([("created_at", 1), ("_id", 1)]).skip(offset).limit(limit)], "total": self.db.auth_users.count_documents(where), "offset": offset, "limit": limit}
 
     def set_role(self, identifier, payload):
         self.require_admin()
@@ -228,6 +242,11 @@ class AccessStore:
     def require_artifact(self, kind, identifier, permission="view"):
         if not re.fullmatch(r"[a-f0-9]{32}", identifier):
             raise HTTPException(404, "report_not_found")
+        # Teaching access covers only the immutable artifacts explicitly submitted to this teacher.
+        if permission == 'view' and self.actor['role'] == 'teacher' and kind in {'report','clash'}:
+            field = 'source_ids' if kind == 'report' else 'run_id'
+            if self.db.practice_submissions.find_one({'teacher_id':self.actor['id'],field:identifier},{'_id':1}):
+                return None
         record = self.db.auth_artifacts.find_one({"_id": f"{kind}:{identifier}"})
         if record is None:
             collection = {"report": "project_inspections", "clash": "project_runs", "link": "project_links"}[kind]

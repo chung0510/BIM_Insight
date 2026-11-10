@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
 import { accountRequest, roleLabels, type Account, type AccountRole } from "./account-api";
 import type { Connection } from "./inspection-api";
-import AccountProvision from "./AccountProvision";
-import GmailSettings from "./GmailSettings";
 import "./AccountManagement.css";
 
 export default function AdminAccounts({ connection, current }: { connection: Connection; current: Account }) {
@@ -12,14 +10,15 @@ export default function AdminAccounts({ connection, current }: { connection: Con
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState("");
   const [error, setError] = useState(""), [message, setMessage] = useState("");
   const [reload, setReload] = useState(0);
-  const [tab,setTab]=useState<"list"|"provision"|"mail">("list");
+  const [search,setSearch]=useState(""),[query,setQuery]=useState(""),[roleFilter,setRoleFilter]=useState(""),[statusFilter,setStatusFilter]=useState("");
   useEffect(() => {
     const abort = new AbortController(); setLoading(true); setError("");
-    accountRequest<{ items: Account[]; total: number }>(connection, `/api/admin/users?limit=20&offset=${offset}`, undefined, abort.signal).then(result => {
+    const params=new URLSearchParams({limit:"20",offset:String(offset),...(query?{q:query}:{}),...(roleFilter?{role:roleFilter}:{}),...(statusFilter?{status:statusFilter}:{})});
+    accountRequest<{ items: Account[]; total: number }>(connection, `/api/admin/users?${params}`, undefined, abort.signal).then(result => {
       if (!abort.signal.aborted) { setItems(result.items); setTotal(result.total); setChoices({}); }
     }).catch(reason => { if (!abort.signal.aborted) setError(reason.message); }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [connection, offset, reload]);
+  }, [connection, offset, reload, query, roleFilter, statusFilter]);
   async function update(user: Account, kind: "role" | "status") {
     if (busy) return;
     setBusy(user.id); setError(""); setMessage("");
@@ -31,11 +30,10 @@ export default function AdminAccounts({ connection, current }: { connection: Con
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Chưa cập nhật được tài khoản."); setReload(value => value + 1); }
     finally { setBusy(""); }
   }
-  return <><nav className="admin-account-tabs" aria-label="Chức năng quản trị tài khoản"><button aria-pressed={tab==="list"} onClick={()=>setTab("list")}>Danh sách tài khoản</button><button aria-pressed={tab==="provision"} onClick={()=>setTab("provision")}>Cấp tài khoản</button><button aria-pressed={tab==="mail"} onClick={()=>setTab("mail")}>Email khôi phục</button></nav>
-    {tab==="provision"&&<AccountProvision connection={connection} onCreated={()=>setReload(value=>value+1)}/>}{tab==="mail"&&<GmailSettings connection={connection}/>}
-    {tab==="list"&&<section className="work-panel" aria-label="Quản lý tài khoản" aria-busy={loading}>
+  return <section className="work-panel role-space" aria-label="Quản lý tài khoản" aria-busy={loading}>
     <div className="work-section-heading"><div><span className="work-eyebrow">QUẢN TRỊ / TÀI KHOẢN</span><h2>Đúng người, đúng quyền.</h2><p>Tài khoản tự đăng ký là Người dùng. Chọn Cấp tài khoản để tạo giảng viên và sinh viên bằng mã hoặc Excel.</p></div><button className="button" disabled={loading || !!busy} onClick={() => setReload(value => value + 1)}><RefreshCw size={16} />Tải lại danh sách</button></div>
-    <div className="work-notice"><ShieldCheck size={19} aria-hidden="true" /><p>Mọi vai trò đều có dự án cá nhân. Giảng viên chỉ rà soát dự án được chia sẻ; Admin không tự có quyền xem hồ sơ riêng của người khác.</p></div>
+    <div className="work-notice"><ShieldCheck size={19} aria-hidden="true" /><p>Mọi vai trò đều có dự án cá nhân. Giảng viên chỉ mở bài nộp mình phụ trách hoặc hồ sơ được chia sẻ; Admin không tự có quyền xem hồ sơ riêng của người khác.</p></div>
+    <form className="role-fields" onSubmit={event=>{event.preventDefault();setOffset(0);setQuery(search.trim());}}><label>Tìm tài khoản theo mã, tên hoặc email<input value={search} maxLength={100} onChange={event=>setSearch(event.target.value)}/></label><label>Lọc vai trò<select aria-label="Lọc vai trò" value={roleFilter} onChange={event=>{setOffset(0);setRoleFilter(event.target.value);}}><option value="">Tất cả vai trò</option>{Object.entries(roleLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Lọc trạng thái<select aria-label="Lọc trạng thái" value={statusFilter} onChange={event=>{setOffset(0);setStatusFilter(event.target.value);}}><option value="">Tất cả trạng thái</option><option value="active">Đang hoạt động</option><option value="disabled">Đã khóa</option><option value="pending">Chờ đổi mật khẩu</option></select></label><button className="button" disabled={loading||!!busy}>Tìm tài khoản</button></form>
     {error && <p className="account-error" role="alert">{error}</p>}{message && <p className="work-success" role="status"><CheckCircle2 size={17} />{message}</p>}
     <div className="work-account-list">{items.map(user => <article className="work-account-row" key={user.id}>
       <div className="work-avatar" aria-hidden="true">{user.display_name.slice(0, 1).toUpperCase()}</div>
@@ -45,5 +43,5 @@ export default function AdminAccounts({ connection, current }: { connection: Con
     </article>)}</div>
     {loading && !items.length && <p className="project-muted" role="status">Đang tải tài khoản…</p>}
     <div className="work-pagination"><button className="button" disabled={!offset || loading || !!busy} onClick={() => setOffset(value => Math.max(0, value - 20))}>Trang trước</button><span>{total ? `${offset + 1}–${Math.min(total, offset + 20)}` : "0"} / {total} tài khoản</span><button className="button" disabled={offset + 20 >= total || loading || !!busy} onClick={() => setOffset(value => value + 20)}>Trang sau</button></div>
-  </section>}</>;
+  </section>;
 }

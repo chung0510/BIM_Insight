@@ -60,6 +60,8 @@ def delete_project(store, identifier):
 
 def _delete_project(store, identifier, check_lock):
     store.require_project(identifier, "delete")
+    if store.database.practice_submissions.find_one({'project_id':identifier},{'_id':1}):
+        raise HTTPException(409, 'project_has_submissions')
     database, root = store.database, store.directory.resolve()
     query = {"project_id": identifier}
     reports = list(database.project_inspections.find(query, {"sha256": 1}))

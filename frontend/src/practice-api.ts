@@ -1,0 +1,20 @@
+import type {ClashReport, Inspection} from './inspection-api';
+
+export type Criterion = {id:string;title:string;description:string;max_points:number};
+export type PracticeStudent = {id:string;username:string;display_name:string;identity_code?:string};
+export type ClassContext={id:string;code:string;name:string;term:string;archived:boolean};
+export type PracticeClass=ClassContext&{description:string;teacher_id:string;teacher_name:string;revision:number;created_at:string;student_count:number;assignment_count:number;submission_count:number;pending_count:number;published_count:number;membership?:{administrative_class:string;added_at:string}};
+export type ClassMember=PracticeStudent&{administrative_class:string;added_at:string;active:boolean;disabled?:boolean;role?:string};
+export type RosterPreview={rows:{student_id:string;code:string;display_name:string;administrative_class:string;already_member:boolean}[];errors:{row:number;code:string;value:string}[];valid_count:number};
+export type Assignment = {id:string;title:string;instructions:string;group_name:string;due_at:string|null;teacher_name:string;criteria:Criterion[];max_points:number;students?:PracticeStudent[];student_ids?:string[];submission_count:number;published_count:number;class_id?:string|null;class_context?:ClassContext|null};
+export type Grade = {revision:number;published:boolean;feedback:string;scores:{criterion_id:string;points:number;comment:string}[];total_points:number;max_points:number;reviewer:string;reviewer_id:string;updated_at:string};
+export type Analysis = {proposal:{assessment:string;summary:string;priorities:{group_id:string;action:string;rationale:string}[];next_steps:string[]};evidence:{issue_count:number;groups:{id:string;count:number;types:string[]}[]};metrics:{elapsed_seconds:number};model:{id:string;fine_tuned:boolean};created_at:string};
+export type Submission = {id:string;assignment_id:string;assignment:Omit<Assignment,'id'|'student_ids'|'students'|'submission_count'|'published_count'>;student_id:string;student_name:string;student_code:string;project_id:string;project_name:string;attempt:number;created_at:string;late:boolean;run_id:string|null;run_status:string|null;issue_count:number|null;files:{id:string;name:string;kind:string;sha256:string;size_bytes:number;report_url:string}[];grade:Grade|null;analysis?:Analysis;class_context?:ClassContext|null};
+export type PracticeEvidenceData = {reports:Inspection[];run:ClashReport|null};
+export type PracticeSummary = {assignments:number;submissions:number;pending:number;published:number;classes:number;unread:number};
+export type GradebookRow={student_id:string;student_name:string;student_code:string;administrative_class:string;active:boolean;status:'not_submitted'|'submitted'|'draft'|'published';submission:Submission|null;published:Submission|null;attempt_count:number};
+export type ClassGradebookData=PageResult<GradebookRow>&{assignment:Assignment;class_context:ClassContext};
+export type PracticeNotification={id:string;title:string;body:string;kind:string;class_id?:string|null;assignment_id?:string;submission_id?:string;created_at:string;read_at:string|null};
+export type NotificationsData=PageResult<PracticeNotification>&{unread:number;upcoming:{assignment_id:string;class_id?:string|null;title:string;due_at:string}[]};
+export type PageResult<T> = {items:T[];total:number;offset:number;limit:number};
+export const practiceDate = (value:string|null) => value ? new Date(value).toLocaleString('vi-VN') : 'Không đặt hạn nộp';

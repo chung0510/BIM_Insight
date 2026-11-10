@@ -11,12 +11,19 @@ from app.access_routes import Registration
 from app.main import create_app
 
 
-def create_web_app():
-    origin = os.getenv("BIM_WEB_ORIGIN") or os.getenv("RENDER_EXTERNAL_URL", "")
-    parsed = urlsplit(origin)
+def https_origin(value):
+    parsed = urlsplit(value)
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
-            or parsed.path or parsed.query or parsed.fragment or "*" in origin):
+            or parsed.path or parsed.query or parsed.fragment or "*" in value):
         raise ValueError("A single HTTPS web origin without a path is required")
+    return value
+
+
+def create_web_app():
+    origin = https_origin(os.getenv("BIM_WEB_ORIGIN") or os.getenv("RENDER_EXTERNAL_URL", ""))
+    frontend_origin = os.getenv("BIM_FRONTEND_ORIGIN")
+    if frontend_origin:
+        frontend_origin = https_origin(frontend_origin)
     secret = os.getenv("BIM_SETTINGS_KEY", "")
     if len(secret) < 32:
         raise ValueError("BIM_SETTINGS_KEY must contain at least 32 characters")
@@ -38,7 +45,7 @@ def create_web_app():
                      database_name=os.getenv("BIM_DATABASE", "bim_insight_render_demo"),
                      data_dir=Path(os.getenv("BIM_DATA_DIR", "/tmp/bim-insight")),
                      upload_limit_bytes=upload_mb * 1024**2, web_origin=origin, initial_admin=admin,
-                     web_demo=os.getenv("BIM_WEB_DEMO") == "1")
+                     web_demo=os.getenv("BIM_WEB_DEMO") == "1", frontend_origin=frontend_origin)
     app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
     return app
 

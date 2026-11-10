@@ -28,7 +28,8 @@ try {
   }
   async function openShared(page,username) {
     await page.goto('http://127.0.0.1:1420/'); await signIn(page,username);
-    await page.getByRole('button',{name:username==='uiteacher'?'Hồ sơ được chia sẻ':'Kiểm tra hồ sơ',exact:true}).click();
+    if(username==='uiteacher')await page.locator('.work-personal-nav>summary').click();
+    await page.getByRole('button',{name:username==='uiteacher'?'Hồ sơ được chia sẻ':'Tự kiểm tra BIM',exact:true}).click();
     const projects=page.getByRole('region',{name:'Quản lý dự án và lịch sử'});
     await projects.getByLabel('Dự án đang mở',{exact:true}).selectOption(project);
     await projects.locator('.project-run-list>button').first().click();

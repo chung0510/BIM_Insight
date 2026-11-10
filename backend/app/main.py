@@ -36,6 +36,7 @@ from app.run_conclusions import RunConclusions
 from app.access import AccessStore, actor_context
 from app.access_routes import Registration, attach_access_routes
 from app.account_management_routes import attach_account_management_routes
+from app.practice_routes import attach_practice_routes
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "inspections"
 
@@ -52,6 +53,7 @@ def create_app(
     web_origin: str | None = None,
     initial_admin: Registration | None = None,
     web_demo: bool = False,
+    frontend_origin: str | None = None,
 ) -> FastAPI:
     if len(api_token) < 32:
         raise ValueError("A local session token of at least 32 characters is required")
@@ -77,6 +79,8 @@ def create_app(
     ]
     if web_origin:
         origins = [web_origin]
+        if frontend_origin:
+            origins.append(frontend_origin)
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -110,7 +114,7 @@ def create_app(
         origin = request.headers.get("origin")
         if origin and origin not in origins:
             return JSONResponse(status_code=403, content={"detail": "origin_not_allowed"})
-        if request.url.path.startswith(("/api/inspections", "/api/projects", "/api/auth", "/api/admin", "/api/ready")) and request.method != "OPTIONS":
+        if request.url.path.startswith(("/api/inspections", "/api/projects", "/api/auth", "/api/admin", "/api/practice", "/api/ready")) and request.method != "OPTIONS":
             scheme, _, credential = request.headers.get("authorization", "").partition(" ")
             if not web_origin and (scheme.lower() != "bearer" or not compare_digest(credential.encode("utf-8"), api_token.encode("utf-8"))):
                 return JSONResponse(status_code=401, content={"detail": "invalid_session_token"})
@@ -140,6 +144,7 @@ def create_app(
 
     attach_access_routes(app, access)
     attach_account_management_routes(app, access)
+    attach_practice_routes(app, projects, ai)
 
     def authorize(credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False))):
         if web_origin:

@@ -133,8 +133,24 @@ def attach_access_routes(app, access):
         return access.summary()
 
     @app.get("/api/admin/users")
-    def users(offset: int = Query(0, ge=0, le=100000), limit: int = Query(20, ge=1, le=100)):
-        return access.users(offset, limit)
+    def users(offset: int = Query(0, ge=0, le=100000), limit: int = Query(20, ge=1, le=100), q: str = Query('',max_length=100), role: Literal['admin','teacher','student','user'] | None = None, status: Literal['active','disabled','pending'] | None = None):
+        return access.users(offset, limit, q, role, status)
+
+    @app.get('/api/admin/overview')
+    def admin_overview():
+        access.require_admin()
+        return {'accounts':access.summary()['accounts'],
+                'disabled':access.db.auth_users.count_documents({'disabled':True}),
+                'pending_password':access.db.auth_users.count_documents({'must_change_password':True,'disabled':False}),
+                'provision_batches':access.db.auth_provision_batches.count_documents({}),
+                'audit_events':access.db.auth_audit.count_documents({})}
+
+    @app.get('/api/admin/audit')
+    def admin_audit(offset: int = Query(0,ge=0,le=100000), limit: int = Query(20,ge=1,le=100)):
+        access.require_admin()
+        rows = list(access.db.auth_audit.find({}, {'actor_id':1,'action':1,'target':1,'created_at':1,'role':1,'disabled':1}).sort([('created_at',-1),('_id',-1)]).skip(offset).limit(limit))
+        names = {row['_id']:row['display_name'] for row in access.db.auth_users.find({'_id':{'$in':[row['actor_id'] for row in rows]}},{'display_name':1})}
+        return {'items':[{'id':str(row.pop('_id')),**row,'actor_name':names.get(row['actor_id'],row['actor_id'])} for row in rows], 'total':access.db.auth_audit.count_documents({}),'offset':offset,'limit':limit}
 
     @app.post("/api/admin/users/{user_id}/role")
     def role(user_id: str, payload: RoleChange):

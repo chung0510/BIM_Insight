@@ -1,6 +1,10 @@
 # BIM Insight — Phối hợp và kiểm tra hồ sơ
 
+**Ba không gian theo vai trò · 10/11/2026:** Admin quản trị tài khoản/dịch vụ; giảng viên giao bài có tiêu chí, mở minh chứng và công bố đánh giá; sinh viên tự kiểm tra, nộp hồ sơ và xem phản hồi. Giao diện Người dùng giữ nguyên. Xem luồng sử dụng mới tại mục 13 ở cuối README; tài khoản, cấu hình và hồ sơ hiện có được giữ lại.
+
 **Bản web thử nghiệm Render Free:** xem [hướng dẫn deploy](docs/DEPLOY_RENDER.md) và Blueprint [render.yaml](render.yaml). Bản này có giới hạn upload 20 MiB, tệp lưu tạm và chưa có DWG/Qwen/Gmail SMTP.
+
+**Tách giao diện để mở trang trước khi API thức dậy:** xem [hướng dẫn Static Site](docs/DEPLOY_STATIC_RENDER.md) và [render-static.yaml](render-static.yaml). Giữ backend hiện có; cấu hình đúng `BIM_FRONTEND_ORIGIN` cho URL frontend mới.
 
 ## Kiểm tra DWG/DXF, IFC, PDF và va chạm 3D ngay trong app
 
@@ -415,16 +419,16 @@ Set-Location 'D:\dowload\BIM_Insight'
 npm.cmd run dev
 ```
 
-Mở `http://127.0.0.1:1420`. Lần đầu, tự đặt tên đăng nhập và mật khẩu Admin (ít nhất 12 ký tự); không có tài khoản mặc định. Hồ sơ cũ chưa có chủ được nhận vào Admin này, giữ nguyên tệp nguồn. Nếu kết nối bị ngắt giữa bước tạo tài khoản/nhận hồ sơ, đăng nhập lại bằng tài khoản vừa tạo để tiếp tục. Các tài khoản đăng ký tiếp theo luôn là **Người dùng**; Admin vào **Tài khoản** để đổi vai trò hoặc khóa/mở khóa. Đổi mật khẩu trong **Tài khoản của tôi**. Đóng/tải lại app yêu cầu đăng nhập lại.
+Mở `http://127.0.0.1:1420`. Lần đầu, tự đặt tên đăng nhập và mật khẩu Admin (ít nhất 12 ký tự); không có tài khoản mặc định. Hồ sơ cũ chưa có chủ được nhận vào Admin này, giữ nguyên tệp nguồn. Nếu kết nối bị ngắt giữa bước tạo tài khoản/nhận hồ sơ, đăng nhập lại bằng tài khoản vừa tạo để tiếp tục. Các tài khoản đăng ký tiếp theo luôn là **Người dùng**; Admin vào **Tài khoản và phân quyền** để đổi vai trò hoặc khóa/mở khóa. Đổi mật khẩu trong **Tài khoản của tôi**. Đóng/tải lại app yêu cầu đăng nhập lại.
 
 | Vai trò | Giao diện và quyền hiện có |
 |---|---|
-| Admin | Dashboard quản trị; danh sách tài khoản, đổi vai trò, khóa/mở khóa; dự án riêng và hồ sơ được chia sẻ. Không tự đọc được dự án riêng của người khác. |
-| Giảng viên | Dashboard rà soát; mục **Hồ sơ được chia sẻ**; nhận xét/phản hồi AI khi chủ dự án cấp quyền rà soát; có thể tạo dự án riêng. |
-| Sinh viên | Dashboard thực hành; tạo/nhập/kiểm tra hồ sơ riêng, xem nhận xét và chia sẻ dự án để nhận góp ý. |
+| Admin | Tổng quan hệ thống; tài khoản và phân quyền; cấp tài khoản/Excel; trạng thái dịch vụ/Gmail; nhật ký quản trị. Không tự đọc hồ sơ riêng hoặc công bố điểm. |
+| Giảng viên | Tổng quan giảng dạy; lớp giảng dạy và danh sách sinh viên; bài/tiêu chí trong từng lớp; bài nộp cần chấm; bảng điểm và Excel. Dự án riêng, hồ sơ được chia sẻ và bài chưa gán lớp nằm trong **Không gian cá nhân**. |
+| Sinh viên | Tổng quan thực hành; lớp của tôi và bài được giao trong lớp; tự kiểm tra BIM; các lần nộp; điểm và phản hồi đã công bố. Chỉ xem lớp tham gia và điểm của chính mình. |
 | Người dùng | Dashboard dự án; tạo/nhập/kiểm tra hồ sơ riêng, chia sẻ và xem hồ sơ được cấp quyền. |
 
-Sinh viên và Người dùng cùng quyền dự án riêng trong mốc này. Mỗi chủ dự án có thể tự ghi nhận xét của mình; nhận xét được gắn danh tính thật trong hệ thống, chưa phải điểm/chấp thuận của giảng viên. Chưa triển khai khóa học, lớp học, giao bài hay chấm điểm theo rubric.
+Nhận xét tự rà soát trong dự án vẫn là dữ liệu cộng tác, được tách khỏi điểm bài thực hành. Bài đã nộp lưu rubric và minh chứng theo từng lần; chỉ giảng viên phụ trách được lưu/công bố điểm. Lớp thực hành theo học kỳ quản lý thành viên và bài được giao; hướng dẫn chi tiết tại mục 14. Không có khóa học hoặc video.
 
 Trong **Dự án và lịch sử → Chia sẻ và quyền truy cập**, nhập đúng tên đăng nhập và chọn **Chỉ xem hồ sơ** hoặc **Rà soát — Giảng viên / Admin**. Người được chia sẻ không được sửa nguồn, chạy lại kiểm tra, đồng bộ R2 hoặc chia sẻ tiếp. Quyền xem vẫn cho phép xem 2D/3D, báo cáo và nhận xét; quyền rà soát thêm lưu nhận xét/đề xuất. Có thể thu hồi bất kỳ lúc nào; backend kiểm tra quyền ở từng yêu cầu. Nhấn **Tải lại** để cập nhật quyền và dọn hồ sơ đang hiển thị sau khi bị thu hồi.
 
@@ -519,7 +523,7 @@ Sau khi chuẩn bị server và 4 tài khoản test ở mục 8, chạy `npm.cmd
 
 Sidebar giữ đủ mục chức năng ở cửa sổ laptop. Khi chiều cao thấp, phần trang trí được ẩn; dưới 590 px, các mục menu xếp hai cột. Điện thoại dùng nút mở menu; không cần cuộn riêng trong menu để tới **Tài khoản của tôi**.
 
-**Admin → Tài khoản → Cấp tài khoản:** chọn Giảng viên/Sinh viên, điền họ tên, mã và email rồi chọn **Cấp tài khoản và tải Excel**. Mã là tên đăng nhập; hệ thống nhận cả mã và email, không phân biệt chữ hoa/thường. Mã/email phải duy nhất trong hệ thống. Tài khoản tự đăng ký vẫn là Người dùng; không thể tự chọn quyền giảng viên/sinh viên/Admin qua form đăng ký.
+**Admin → Cấp tài khoản:** chọn Giảng viên/Sinh viên, điền họ tên, mã và email rồi chọn **Cấp tài khoản và tải Excel**. Mã là tên đăng nhập; hệ thống nhận cả mã và email, không phân biệt chữ hoa/thường. Mã/email phải duy nhất trong hệ thống. Tài khoản tự đăng ký vẫn là Người dùng; không thể tự chọn quyền giảng viên/sinh viên/Admin qua form đăng ký.
 
 Để cấp hàng loạt, chọn **Import Excel**, tải mẫu giảng viên hoặc sinh viên. Điền một sheet `.xlsx` có các cột sau:
 
@@ -533,7 +537,7 @@ App hiển thị bảng xem trước và lỗi theo dòng, kiểm tra trùng mã
 
 Nếu mất mạng khi cấp, không tạo lô khác ngay. Trong **Các lô cấp gần đây**, chọn **Tiếp tục cấp** cho lô chưa hoàn tất hoặc **Tải lại Excel** cho lô đã cấp. App tiếp tục đúng lô và giữ mật khẩu đã sinh; không tạo tài khoản trùng khi retry. Bản xuất được bảo vệ theo Windows, cần tải lại trên máy đã tạo lô.
 
-**Thiết lập Gmail:** vào **Admin → Tài khoản → Email khôi phục**. Bật Xác minh 2 bước cho Gmail gửi thư, tạo [Mật khẩu ứng dụng Google](https://support.google.com/accounts/answer/185833?hl=en-ST), rồi nhập Gmail và mật khẩu ứng dụng 16 ký tự trong app. Chọn **Lưu và kiểm tra Gmail**. App dùng `smtp.gmail.com:465` với TLS được xác thực, lưu cấu hình DPAPI và không đọc lại password vào giao diện. Không nhập mật khẩu Google thông thường hoặc gửi key vào chat. Xem thêm [cấu hình SMTP chính thức](https://developers.google.com/workspace/gmail/imap/imap-smtp).
+**Thiết lập Gmail:** vào **Admin → Cấu hình dịch vụ**. Bật Xác minh 2 bước cho Gmail gửi thư, tạo [Mật khẩu ứng dụng Google](https://support.google.com/accounts/answer/185833?hl=en-ST), rồi nhập Gmail và mật khẩu ứng dụng 16 ký tự trong app. Chọn **Lưu và kiểm tra Gmail**. App dùng `smtp.gmail.com:465` với TLS được xác thực, lưu cấu hình DPAPI và không đọc lại password vào giao diện. Không nhập mật khẩu Google thông thường hoặc gửi key vào chat. Xem thêm [cấu hình SMTP chính thức](https://developers.google.com/workspace/gmail/imap/imap-smtp).
 
 Cấu hình gửi thư thuộc backend/Windows user trên máy này, không đi theo bộ cài. Máy khác cần cấu hình gửi thư riêng; phiên bản này chưa có dịch vụ gửi mail tập trung. Kiểm tra kết nối thành công xác nhận đăng nhập SMTP; muốn kiểm chứng email đến hộp thư, tiếp tục luồng xác nhận email dưới đây với địa chỉ của bạn.
 
@@ -585,3 +589,58 @@ Sau bản sửa va chạm 08/11, khởi động lại **cả phiên terminal ch�
 **Tạo lại bản xem Office sau bản sửa 08/11:** dừng phiên app cũ bằng Ctrl+C (trả lời Y nếu terminal hỏi), chạy `npm.cmd start`. Trong **Dự án và lịch sử**, điền revision mới như `R02`, bấm **Mở revision**, nhập lại bộ IFC Office rồi **Bắt đầu kiểm tra**. Cùng nguồn/cùng revision trả báo cáo đã lưu, nên chỉ tải lại trang hoặc nhập lại vào `R01` sẽ giữ bản xem cũ. Báo cáo/revision và checksum R2 cũ được giữ nguyên; bản xem mới hiện dung lượng đã tối ưu trong chi tiết IFC. Dành khoảng 5 GiB RAM trống cho lượt nhập HVAC Office đã đo; app tiếp tục dừng an toàn nếu ngân sách thực tế không đủ.
 
 **Sau lần dọn 08/11:** đăng nhập bằng tài khoản cũ, tạo dự án mới và nhập bộ nguồn ở `R01`; các dự án test trước đó đã được xóa theo yêu cầu. Tệp gốc, Qwen/adapter và thông tin kết nối vẫn còn. Lượt nhập và va chạm đầu tiên sẽ dựng lại cache.
+
+### 13. Giao bài, nộp minh chứng và công bố đánh giá · 10/11/2026
+
+Admin dùng **Tài khoản và phân quyền** để tìm theo mã/tên/email, lọc vai trò hoặc trạng thái; **Cấp tài khoản** để cấp từng người hoặc Excel. **Cấu hình dịch vụ** hiển thị trạng thái MongoDB/R2/Qwen/Gmail của môi trường đang chạy và giữ form Gmail hiện có. Cấu hình R2/Qwen không đồng nghĩa dịch vụ đã qua thử nghiệm đầu cuối. **Nhật ký quản trị** chỉ hiện người thao tác, hành động, mã và thời gian; không hiện mật khẩu, khóa hay nội dung bài riêng.
+
+Luồng thực hành:
+
+1. Giảng viên vào **Lớp giảng dạy → mở lớp → Bài thực hành → Tạo bài thực hành**, nhập yêu cầu, hạn nộp tùy chọn và bảng tiêu chí; giao toàn bộ lớp hoặc chọn nhóm sinh viên rồi **Giao bài thực hành**. Ba tiêu chí 40/40/20 là giá trị khởi đầu để giảng viên chỉnh, chưa phải thang đánh giá chuyên ngành đã nghiệm thu. Tiêu chí và người nhận được chốt khi giao; muốn đổi yêu cầu thì tạo bài mới.
+2. Sinh viên mở **Lớp của tôi → mở lớp → Bài thực hành**, đọc yêu cầu/tiêu chí. Vào **Tự kiểm tra BIM** để tạo dự án, nhập IFC/DWG/DXF/PDF và lưu kết quả. Hồ sơ 3D không bắt buộc có DXF. Nếu giảng viên mở bài trên máy khác, đồng bộ dự án lên R2 và xác minh đủ tệp trước khi nộp.
+3. Chọn **Nộp bài**, chọn dự án của chính mình và lượt kiểm tra kèm bài; có thể nộp hồ sơ không kèm lượt va chạm. Mỗi lần nộp giữ đúng ID/hash tệp và bảng tiêu chí. Sửa dự án không thay bản đã nộp; bài sửa nộp thành lần tiếp theo. Nộp muộn được ghi nhận rõ, không tự trừ điểm.
+4. Giảng viên mở **Bài nộp cần chấm → Mở đánh giá**, xem đúng IFC/bản vẽ đã nộp, cô lập cặp cấu kiện trong 3D hoặc tải tệp nguồn. Nhập điểm và nhận xét từng tiêu chí, lưu nháp hoặc công bố. Backend tính tổng và kiểm tra giới hạn tiêu chí, người phụ trách, phiên đăng nhập và phiên bản; hai phiên không ghi đè điểm lẫn nhau. Điểm đã công bố chỉ được cập nhật bằng một lần công bố mới, không chuyển lại thành nháp.
+5. Sinh viên vào **Điểm và phản hồi** để xem kết quả đã công bố, nhận xét theo tiêu chí và tải JSON của lần nộp. Điểm nháp và phân tích riêng của người chấm không hiển thị cho sinh viên. Giảng viên xem các kết quả đã công bố trong **Bảng điểm**.
+
+Qwen trong **Minh chứng bài nộp** tái sử dụng runtime local và bằng chứng hình học của lượt kiểm tra đã nộp. Có hủy, kiểm tra đầu ra và kiểm tra lại quyền trước khi lưu. Qwen chưa fine-tune chuyên ngành, không tự tính/công bố điểm, không thay người chấm kiểm chứng thao tác trong Revit hoặc tiêu chí chưa có dữ liệu. Số va chạm không được tự quy đổi thành điểm.
+
+Dữ liệu mới lưu ở `practice_assignments` và `practice_submissions`, tách khỏi nhãn dự án. Giảng viên chỉ đọc đúng minh chứng của bài mình phụ trách, không tự mở toàn bộ dự án hoặc các bản nháp sinh viên tải lên sau đó. Dự án đang làm minh chứng cho bài đã nộp bị chặn xóa để giữ hồ sơ đối chiếu. Các dự án và công cụ cũ vẫn nằm ở **Không gian cá nhân**; Người dùng tiếp tục giao diện cũ.
+
+Kiểm thử UI tự tạo database **localhost riêng**, dùng ba IFC hình học nhỏ đi qua bộ xử lý thật, không dùng Atlas/R2 làm việc; tự dọn database và cache của lần thử. Cần MongoDB local và Chromium theo mục kiểm thử hiện có:
+
+```powershell
+npm.cmd run test:roles
+```
+
+Ảnh, log và đối chiếu baseline Người dùng tại `.local/role-workspaces-20261110/` (được bỏ qua bởi Git). Có baseline thì kiểm tra cả ảnh, che riêng canvas đang quay; checkout mới chưa có baseline vẫn kiểm tra menu và luồng bốn vai trò. Đây là kiểm thử kỹ thuật bằng dữ liệu tổng hợp, chưa phải nghiệm thu chất lượng điểm chuyên ngành hoặc kiểm thử nhiều máy dùng chung Atlas/R2. Bộ cài Windows cũ chưa chứa thay đổi này.
+
+Kiểm chứng mốc này: build và luồng UI bốn vai trò desktop/390 px đạt; 373 ca backend đạt/3 skip tùy chọn, sau chỉnh prompt có thêm lượt 29 ca hồi quy phần AI/bài thực hành đều đạt. Qwen NF4 local thật qua API bài nộp hoàn tất khoảng 43 giây trên ba IFC tổng hợp/hai cặp; trọng số được xác minh, phân tích lưu/mở lại đúng người chấm và không tự tạo điểm. Thử trạng thái tạo/hủy/khóa ô điểm ở UI dùng phản hồi kiểm soát, tách khỏi phép thử model thật. Các database thử chỉ ở localhost và được dọn.
+
+### 14. Lớp thực hành và danh sách sinh viên · 10/11/2026
+
+**Giảng viên:** vào **Lớp giảng dạy → Tạo lớp thực hành**, điền mã, tên, học kỳ và mô tả. Mã dùng chữ/số/gạch nối/gạch dưới; không trùng mã trong cùng học kỳ của chính giảng viên đó. Trang lớp luôn hiện mã, tên, học kỳ và người phụ trách, với các tab **Tổng quan lớp – Sinh viên – Bài thực hành – Bảng điểm**. Có thể sửa thông tin lớp; lớp hành chính là thông tin bổ sung của thành viên, không thay cho lớp thực hành.
+
+Trong tab **Sinh viên**, chọn **Thêm sinh viên**, tìm tài khoản đã được Admin cấp theo MSSV/tên và chọn người cần thêm. Có thể điền lớp hành chính cho nhóm được chọn; để trống giữ thông tin đã có. **Nhập danh sách Excel** nhận .xlsx một sheet, tối đa 200 dòng/2 MiB, với cột **Mã sinh viên** và cột tùy chọn **Lớp hành chính**. Dùng mẫu trong app và định dạng mã là Text để giữ số 0 đầu. App hiển thị người khớp theo tài khoản, lỗi mã trùng/không tồn tại/công thức; sửa hết lỗi trước khi xác nhận. Nhập danh sách lớp không tạo tài khoản, đổi vai trò hoặc sinh mật khẩu; thiếu tài khoản cần Admin cấp trước.
+
+**Sinh viên:** mục **Lớp của tôi** và phần Tổng quan hiển thị các lớp đang tham gia cùng giảng viên/học kỳ. Mở lớp để xem yêu cầu, bài được giao và **Kết quả của tôi**; không có quyền mở danh sách cá nhân hoặc điểm của sinh viên khác. Một sinh viên có thể tham gia nhiều lớp. Chưa có lớp thì liên hệ giảng viên bằng MSSV/tên đăng nhập; vẫn có thể tự kiểm tra hồ sơ BIM cá nhân.
+
+Khi giao bài, chọn **Giao cho toàn bộ lớp** hoặc bỏ chọn để chọn nhóm. Danh sách người nhận được chốt tại lúc giao, tối đa 200 sinh viên mỗi bài. Sinh viên được thêm sau không tự nhận lại các bài cũ; cần bài mới với đúng người nhận. Phiên đang mở lớp cũ sẽ được yêu cầu tải lại nếu danh sách vừa thay đổi trước khi giao. Nộp/chấm/xem IFC và Qwen tiếp tục dùng luồng tại mục 13.
+
+Tab **Bảng điểm** của giảng viên cho chọn từng bài, liệt kê cả người được giao nhưng chưa nộp và mở đúng lần cần chấm. Khi sinh viên nộp lại, điểm đã công bố của lần trước vẫn được giữ và hiển thị bên cạnh trạng thái lần mới. **Xuất bảng điểm Excel** xuất MSSV, lớp hành chính, trạng thái lần mới nhất, lần đã công bố, điểm và phản hồi; nội dung nhập vào được xuất thành ô văn bản để không thực thi công thức. Sinh viên xem kết quả riêng, không tải bảng điểm toàn lớp.
+
+Nút **Thông báo** trên thanh đầu trang của giảng viên/sinh viên hiển thị việc thêm lớp, giao/nộp bài và công bố điểm; có đánh dấu đã đọc và hạn nộp trong 7 ngày tới. Thông báo chỉ trong app, không tự gửi mail hoặc thông báo ngoài. Liên kết bài cũ theo lớp hiện tại dù sự kiện đã được ghi trước khi gán lớp. Hạn của lớp đã lưu trữ và bài sinh viên đã nộp không tiếp tục nhắc nộp.
+
+**Bài cũ:** vào **Không gian cá nhân → Bài thực hành chưa gán lớp → Gán vào lớp**. Lớp nhận phải có đủ sinh viên đã được giao bài đó. App không tự đoán theo tên nhóm và không sửa snapshot, điểm hoặc minh chứng của các lần nộp trước. Không tự chuyển một bài đã có lớp sang lớp khác.
+
+**Lưu trữ:** giảng viên chọn **Lưu trữ lớp** và xác nhận. Lớp trở thành chỉ đọc; không nhận thành viên, giao/nộp/chấm bài hoặc tạo phân tích mới, nhưng vẫn xem hồ sơ/điểm đã có. Mở lại lớp bằng tab **Đã lưu trữ → Mở lại lớp**. Gỡ sinh viên chỉ ngừng việc nhận/nộp mới trong lớp; sinh viên vẫn đọc bài đã nộp và điểm riêng trong lịch sử cá nhân. Các thao tác ghi dùng revision/khóa chung; nếu có tác vụ đang ghi, app báo bận để thử lại, không ghi đè.
+
+Kiểm thử UI bằng `npm.cmd run test:classes`: database localhost/thư mục riêng, ba IFC tổng hợp qua parser thật, nhập/xuất Excel, thông báo, chuyển lớp/bài và lưu trữ; không ghi Atlas/R2 làm việc. Ảnh/log/JUnit ở `.local/classes-20261110/`. UI Qwen dùng phản hồi kiểm soát; mốc lớp không thay trọng số hoặc fine-tune mô hình. Chưa build lại bộ cài Windows hoặc nghiệm thu dùng chung nhiều laptop.
+
+Kiểm chứng cuối mốc lớp: **384 backend tests đạt, 3 skip tùy chọn**, build và hai parser stream đạt. Playwright desktop/390 px hoàn tất luồng lớp và giữ ảnh/menu Người dùng khớp baseline, không có lỗi JavaScript; đã thử request bảng điểm chậm và chuyển giữa hai lớp để tránh hiển thị nhầm kết quả. Có review độc lập; biên bản `.local/classes-20261110/verification.json`. Database/cache thử được dọn, giữ các tài khoản, cấu hình và hồ sơ làm việc.
+
+Để áp dụng bản source mới, dừng terminal app cũ bằng **Ctrl+C** rồi chạy lại:
+
+```powershell
+Set-Location 'D:\dowload\BIM_Insight'
+npm.cmd start
+```
