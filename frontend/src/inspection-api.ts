@@ -93,6 +93,28 @@ export type Inspection = {
 };
 
 const messages: Record<string, string> = {
+  practice_role_required: "Chức năng này dành cho Giảng viên hoặc Sinh viên theo đúng nhiệm vụ được phân công.",
+  practice_not_found: "Chưa tìm thấy bài thực hành hoặc bạn chưa được cấp quyền xem bài này.",
+  practice_students_invalid: "Danh sách có tài khoản chưa phải Sinh viên, đã bị khóa hoặc không còn tồn tại. Tải lại danh sách trước khi giao bài.",
+  practice_evidence_required: "Dự án cần có hồ sơ đã đọc được. Chọn bộ hồ sơ hoặc lượt kiểm tra hợp lệ trước khi nộp.",
+  practice_submission_changed: "Yêu cầu nộp bài đã thay đổi. Mở lại bài thực hành trước khi nộp lần mới.",
+  practice_score_invalid: "Điểm cần đủ các tiêu chí và nằm trong khoảng từ 0 đến điểm tối đa của từng tiêu chí.",
+  practice_grade_changed: "Đánh giá đã được cập nhật ở phiên khác. Mở lại bài nộp để lấy phiên bản mới trước khi lưu.",
+  practice_grade_published: "Điểm đã công bố được giữ cho sinh viên. Dùng Công bố kết quả để cập nhật điểm, không chuyển về nháp.",
+  class_not_found: "Lớp không còn khả dụng với tài khoản này. Kiểm tra lại lớp được phân công hoặc liên hệ giảng viên.",
+  class_archived: "Lớp đã lưu trữ nên không nhận thao tác ghi mới. Giảng viên phụ trách có thể mở lại lớp.",
+  class_changed: "Lớp vừa được cập nhật ở phiên khác. Tải lại lớp trước khi tiếp tục.",
+  class_code_exists: "Bạn đã có lớp cùng mã và học kỳ. Đổi mã hoặc mở lớp hiện có.",
+  class_member_not_found: "Sinh viên không còn trong danh sách lớp. Tải lại danh sách để cập nhật.",
+  class_assignment_recipients: "Chọn từ 1 đến 200 sinh viên đang tham gia lớp. Nếu lớp lớn hơn, hãy giao theo nhóm được chọn.",
+  class_assignment_members_missing: "Lớp nhận bài chưa có đủ sinh viên đã được giao bài này. Thêm các sinh viên đó vào lớp trước khi gán.",
+  class_assignment_attached: "Bài đã được gán vào một lớp. Không tự chuyển lớp của bài để giữ lịch sử rõ ràng.",
+  class_excel_headers: "Excel cần cột Mã sinh viên; có thể thêm cột Lớp hành chính.",
+  class_excel_duplicate: "Mã sinh viên bị trống, trùng hoặc không hợp lệ. Sửa dòng này trước khi nhập.",
+  class_excel_account_missing: "Không tìm thấy đúng một tài khoản Sinh viên đang hoạt động. Kiểm tra MSSV hoặc nhờ Admin cấp tài khoản.",
+  class_excel_cohort_invalid: "Tên lớp hành chính quá dài; tối đa 100 ký tự.",
+  notification_not_found: "Không tìm thấy thông báo thuộc tài khoản này. Tải lại thông báo.",
+  project_has_submissions: "Dự án đang giữ minh chứng của bài đã nộp nên chưa thể xóa. Giữ hồ sơ này để đối chiếu; dùng lần nộp mới cho bài đã sửa.",
   account_session_required: "Hãy đăng nhập để tiếp tục.",
   account_session_expired: "Phiên đăng nhập đã hết hạn hoặc bị thu hồi. Hãy đăng nhập lại.",
   invalid_credentials: "Tên đăng nhập hoặc mật khẩu chưa đúng.",
@@ -271,7 +293,7 @@ export function authHeaders(connection: Pick<Connection, "token">): Record<strin
   return { ...(connection.token ? { Authorization: `Bearer ${connection.token}` } : {}), ...(accountToken ? { "X-BIM-Session": accountToken } : {}) };
 }
 export async function processorFetch(connection: Connection, url: string, options: RequestInit = {}) {
-  if (!url.startsWith("/api/inspections/") && url !== "/api/projects" && !url.startsWith("/api/projects?") && !url.startsWith("/api/projects/") && !url.startsWith("/api/auth/") && !url.startsWith("/api/admin/")) throw new Error("Đường dẫn dữ liệu không hợp lệ.");
+  if (url !== "/api/ready" && !url.startsWith("/api/inspections/") && url !== "/api/projects" && !url.startsWith("/api/projects?") && !url.startsWith("/api/projects/") && !url.startsWith("/api/auth/") && !url.startsWith("/api/admin/") && !url.startsWith("/api/practice/")) throw new Error("Đường dẫn dữ liệu không hợp lệ.");
   const response = await fetch(`${connection.base_url}${url}`, {
     ...options, headers: { ...authHeaders(connection), ...options.headers },
   });

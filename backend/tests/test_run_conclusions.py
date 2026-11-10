@@ -66,12 +66,21 @@ def test_summary_prompt_uses_bounded_groups_and_no_source_name_instructions():
     assert facts['geometry']['missing_geometry'] is False
 
 
-@pytest.mark.parametrize('mutation',['fake_group','invented_measurement','missing_review','fake_citation','surface_reroute','false_clear','unknown_reference_in_prose'])
+@pytest.mark.parametrize('total,expected',[(0,0),(2,1),(205,2)])
+def test_summary_prompt_limits_unique_priorities_to_available_groups(total,expected):
+    from app.run_conclusions import build_evidence, prompt_messages
+    system=prompt_messages(build_evidence(report(total),[]))[0]['content']
+    assert f'Use at most {expected} priorities' in system
+    assert 'DISTINCT group_id' in system and 'ONE action for each group' in system
+
+
+@pytest.mark.parametrize('mutation',['fake_group','invented_measurement','missing_review','fake_citation','surface_reroute','false_clear','unknown_reference_in_prose','duplicate_group'])
 def test_summary_output_cannot_invent_evidence_or_treat_surface_as_solid(mutation):
     from app.run_conclusions import build_evidence, validate_conclusion
     evidence=build_evidence(report(),[])
     data=proposal()
     if mutation=='fake_group': data['priorities'][0]['group_id']='fake'
+    if mutation=='duplicate_group': data['priorities'].append(copy.deepcopy(data['priorities'][0]))
     if mutation=='invented_measurement': data['summary']='Dịch tuyến 250 mm là hết mọi xung đột.'
     if mutation=='missing_review': data['requires_review']=False
     if mutation=='fake_citation': data['citations']=['fabricated-standard']

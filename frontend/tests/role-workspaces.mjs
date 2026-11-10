@@ -1,0 +1,212 @@
+import {chromium,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+import {spawn,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {mkdir,writeFile,readFile,realpath,rm} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {createInterface} from 'node:readline';
+import {createServer} from 'vite';
+import {signIn,TEST_PASSWORD,cleanLocalTestDatabase} from './account-helper.mjs';
+
+// Browser plugin unavailable; use a fresh local API/database, never the working Atlas/R2 configuration.
+const baseline=process.argv.includes('--baseline');
+const output=resolve(process.argv.includes('--classes')?'.local/classes-20261110':'.local/role-workspaces-20261110'),database=`bim_insight_test_roleui_${Date.now()}`,directory=resolve('.local',database);
+await mkdir(output,{recursive:true});await mkdir(directory);process.env.BIM_UI_TEST='1';
+const backend=spawn(resolve('.venv/Scripts/python.exe'),['-m','app','--desktop','--parent-pid',String(process.pid)],{windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,PYTHONPATH:resolve('backend'),BIM_MONGODB_URI:'mongodb://127.0.0.1:27017',BIM_DATABASE:database,BIM_DATA_DIR:resolve(directory,'data')}});
+backend.stderr.on('data',()=>{});let server,browser,page;const testPages=[];
+const result={status:'running',baseline,production_atlas_r2_used:false,console_errors:[],checks:[]};
+try{
+ const connection=await new Promise((done,reject)=>{const lines=createInterface({input:backend.stdout}),timer=setTimeout(()=>reject(new Error('Backend startup timeout')),30000);lines.once('line',line=>{clearTimeout(timer);try{done(JSON.parse(line));}catch{reject(new Error('Invalid backend response'));}});});
+ assert.match(connection.base_url,/^http:\/\/127\.0\.0\.1:\d+$/);
+ async function api(path,session,body){const response=await fetch(connection.base_url+path,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${connection.token}`,...(session?{'X-BIM-Session':session.session_token}:{}),...(body instanceof FormData || body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body)});const data=await response.json();assert.ok(response.ok,`${path}: ${response.status} ${JSON.stringify(data)}`);return data;}
+ const admin=await api('/api/auth/bootstrap',null,{username:'uiadmin',display_name:'Quản trị thử nghiệm',password:TEST_PASSWORD});
+ const accounts={admin};
+ for(const [role,display_name] of [['user','Người dùng thử nghiệm'],['teacher','Giảng viên thử nghiệm'],['student','Sinh viên thử nghiệm']]){const actor=await api('/api/auth/register',null,{username:'ui'+role,display_name,password:TEST_PASSWORD});if(role!=='user')actor.user=await api(`/api/admin/users/${actor.user.id}/role`,admin,{role,expected_revision:actor.user.revision});accounts[role]=actor;}
+ await api('/api/projects',accounts.user,{name:'Dự án cá nhân'});
+ server=await createServer({root:resolve('frontend'),configFile:resolve('frontend/vite.config.ts'),cacheDir:resolve(directory,'vite-cache'),server:{host:'127.0.0.1',port:0,strictPort:false,proxy:{'/api':{target:connection.base_url,changeOrigin:true,headers:{Authorization:`Bearer ${connection.token}`,Origin:'http://127.0.0.1:1420'}}}}});await server.listen();
+ const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
+ browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||resolve(process.env.LOCALAPPDATA,'ms-playwright/chromium-1234/chrome-win64/chrome.exe')});
+ async function login(role){const context=await browser.newContext({viewport:{width:1440,height:1000}});const view=await context.newPage();testPages.push([role,view]);view.setDefaultTimeout(30000);view.on('pageerror',error=>result.console_errors.push(error.message));view.on('console',message=>{if(message.type()==='error')result.console_errors.push(`${role} ${view.url()}: ${message.text()}`);});await view.goto(origin+'/#overview');await signIn(view,'ui'+role);return view;}
+ page=await login('user');await page.getByRole('heading',{name:'Dự án cá nhân',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);await page.locator('.work-hero-residence canvas').waitFor({state:'visible'});
+ const userNav=await page.getByRole('navigation',{name:'Điều hướng chính'}).getByRole('button').allTextContents();
+ const image=await page.screenshot({path:resolve(output,baseline?'before-user.png':'after-user.png'),fullPage:true,animations:'disabled',mask:[page.locator('.work-hero-residence canvas')],maskColor:'#e9ebde'});
+ if(baseline){await writeFile(resolve(output,'before-user.json'),JSON.stringify({navigation:userNav}));result.checks.push('User baseline captured before interface edits');}
+ else{
+  assert.deepEqual(userNav,['Tổng quan','Kiểm tra hồ sơ','Thư viện bản vẽ','Mô hình minh họa','Sổ tay dự án']);
+  const reference=await readFile(resolve('.local/role-workspaces-20261110','before-user.json'),'utf8').catch(error=>{if(error.code!=='ENOENT')throw error;return null;});
+  if(reference){
+   assert.deepEqual(userNav,JSON.parse(reference).navigation);
+   assert.equal(Buffer.compare(image,await readFile(resolve('.local/role-workspaces-20261110','before-user.png'))),0,'User layout must match the baseline (animated canvas masked).');
+   result.checks.push('User navigation and screenshot unchanged');result.user_baseline_compared=true;
+  }else{result.checks.push('User navigation matches existing five functions; historical screenshot unavailable');result.user_baseline_compared=false;}
+  const studentProject=await api('/api/projects',accounts.student,{name:'Bài thực hành nhà ở'});
+  const {stdout}=await promisify(execFile)(resolve('.venv/Scripts/python.exe'),['-c','import json; from app.demo import demo_files; print(json.dumps(demo_files()[:3]))'],{windowsHide:true,env:{...process.env,PYTHONPATH:resolve('backend')}});
+  const reports=[];for(const file of JSON.parse(stdout)){const body=new FormData();body.append('file',new Blob([file.content]),file.name);for(const [key,value] of Object.entries({project_id:studentProject.id,logical_source:file.name}))body.append(key,value);reports.push(await api('/api/inspections',accounts.student,body));}
+  await api('/api/inspections/clashes',accounts.student,{model_ids:reports.map(row=>row.id),coordinates_confirmed:true});
+  const adminPage=await login('admin');
+  await expect(adminPage.getByRole('button',{name:'Nhật ký quản trị',exact:true})).toBeVisible();
+  await expect(adminPage.getByRole('button',{name:'Cấp tài khoản',exact:true})).toBeVisible();
+  await adminPage.screenshot({path:resolve(output,'admin-desktop.png'),animations:'disabled'});
+  for(const size of [{width:1440,height:600},{width:844,height:390},{width:812,height:375}]){
+   await adminPage.setViewportSize(size);
+   assert.equal(await adminPage.locator('.work-sidebar').evaluate(node=>node.scrollHeight<=node.clientHeight+1),true,`Sidebar ${size.width}x${size.height}`);
+  }
+  await adminPage.setViewportSize({width:1440,height:1000});
+  await adminPage.getByRole('button',{name:'Tài khoản và phân quyền',exact:true}).click();
+  await adminPage.getByLabel('Lọc vai trò',{exact:true}).selectOption('teacher');
+  await adminPage.getByLabel('Tìm tài khoản theo mã, tên hoặc email',{exact:true}).fill('uiteacher');
+  await adminPage.getByRole('button',{name:'Tìm tài khoản',exact:true}).click();
+  await expect(adminPage.locator('.work-account-row')).toHaveCount(1);
+  await expect(adminPage.locator('.work-account-row')).toContainText('@uiteacher');
+  await adminPage.getByRole('button',{name:'Cấp tài khoản',exact:true}).click();
+  await expect(adminPage.getByRole('region',{name:'Cấp tài khoản giảng viên và sinh viên'})).toBeVisible();
+  await adminPage.getByRole('button',{name:'Cấu hình dịch vụ',exact:true}).click();
+  await expect(adminPage.locator('.role-services article').filter({has:adminPage.getByRole('heading',{name:'MongoDB',exact:true})})).toContainText('Đã kết nối');
+  await adminPage.getByRole('button',{name:'Nhật ký quản trị',exact:true}).click();await expect(adminPage.getByRole('region',{name:'Nhật ký quản trị'})).toBeVisible();
+  const teacher=await login('teacher');
+  assert.equal((await api('/api/practice/students',accounts.teacher)).total,1,'Teacher roster API must contain the provisioned student.');
+  await teacher.screenshot({path:resolve(output,'teacher-home.png'),animations:'disabled'});
+  await teacher.getByRole('button',{name:'Lớp giảng dạy',exact:true}).click();
+  await teacher.getByRole('button',{name:'Tạo lớp thực hành',exact:true}).click();
+  await teacher.getByLabel('Mã lớp thực hành',{exact:true}).fill('REVIT-01');
+  await teacher.getByLabel('Học kỳ / năm học',{exact:true}).fill('HK1 2026-2027');
+  await teacher.getByLabel('Tên lớp thực hành',{exact:true}).fill('Thực hành BIM kiến trúc');
+  await teacher.getByRole('button',{name:'Tạo lớp thực hành',exact:true}).click();
+  await teacher.getByRole('button',{name:'Mở danh sách sinh viên',exact:true}).click();
+  await teacher.getByRole('button',{name:'Thêm sinh viên',exact:true}).click();
+  await teacher.getByRole('checkbox',{name:/Sinh viên thử nghiệm/}).check();
+  await teacher.getByLabel('Lớp hành chính (tùy chọn)',{exact:true}).fill('22XD1');
+  await teacher.getByRole('button',{name:'Thêm 1 sinh viên vào lớp',exact:true}).click();
+  await expect(teacher.getByText('Đã cập nhật danh sách sinh viên của lớp.',{exact:true})).toBeVisible();
+  await teacher.getByRole('button',{name:'Nhập danh sách Excel',exact:true}).click();
+  const templateEvent=teacher.waitForEvent('download');
+  await teacher.getByRole('button',{name:'Tải mẫu danh sách lớp',exact:true}).click();
+  assert.equal((await readFile(await (await templateEvent).path())).subarray(0,2).toString(),'PK');
+  async function rosterFile(name,code){const path=resolve(output,name);await promisify(execFile)(resolve('.venv/Scripts/python.exe'),['-c','import json,sys; from openpyxl import Workbook; b=Workbook(); s=b.active\ns.append(json.loads(sys.argv[1])); s.append([sys.argv[2],"22XD1"]); b.save(sys.argv[3]); b.close()',JSON.stringify(['Mã sinh viên','Lớp hành chính']),code,path],{windowsHide:true});return path;}
+  await teacher.getByLabel('File Excel danh sách lớp',{exact:true}).setInputFiles(await rosterFile('unknown-roster.xlsx','unknown-student'));
+  await expect(teacher.getByRole('alert').filter({hasText:'Không tìm thấy đúng một tài khoản'})).toBeVisible();
+  await teacher.getByLabel('File Excel danh sách lớp',{exact:true}).setInputFiles(await rosterFile('existing-roster.xlsx','uistudent'));
+  await expect(teacher.getByText('1 dòng đối chiếu được · 0 lỗi',{exact:true})).toBeVisible();
+  await teacher.getByRole('button',{name:'Xác nhận danh sách 1 sinh viên',exact:true}).click();
+  await expect(teacher.getByText('Đã cập nhật danh sách sinh viên của lớp.',{exact:true})).toBeVisible();
+  await teacher.screenshot({path:resolve(output,'class-members-desktop.png'),animations:'disabled'});
+  await teacher.getByRole('navigation',{name:'Nội dung lớp'}).getByRole('button',{name:'Bài thực hành',exact:true}).click();
+  await teacher.getByRole('button',{name:'Tạo bài thực hành',exact:true}).click();
+  await teacher.getByLabel('Tên bài thực hành',{exact:true}).fill('Kiểm tra phối hợp nhà ở');
+  await teacher.getByLabel('Yêu cầu bài thực hành',{exact:true}).fill('Đối chiếu mô hình và giải thích các điểm cần phối hợp.');
+  await expect(teacher.getByRole('checkbox',{name:'Giao cho toàn bộ lớp',exact:true})).toBeChecked();
+  await teacher.getByRole('button',{name:'Giao bài thực hành',exact:true}).click();
+  await expect(teacher.getByText('Đã giao bài thực hành.',{exact:true})).toBeVisible();
+  await teacher.getByRole('navigation',{name:'Nội dung lớp'}).getByRole('button',{name:'Sinh viên',exact:true}).click();
+  await expect(teacher.getByRole('region',{name:'Sinh viên trong lớp'})).toContainText('Sinh viên thử nghiệm');
+  const student=await login('student');
+  await student.screenshot({path:resolve(output,'student-home.png'),animations:'disabled'});
+  await student.getByRole('button',{name:'Lớp của tôi',exact:true}).click();
+  await student.getByRole('button',{name:'Mở lớp REVIT-01',exact:true}).click();
+  await expect(student.getByRole('region',{name:'Thông tin lớp đang mở'})).toContainText('22XD1');
+  await expect(student.getByRole('navigation',{name:'Nội dung lớp'}).getByRole('button',{name:'Sinh viên',exact:true})).toHaveCount(0);
+  await student.getByRole('navigation',{name:'Nội dung lớp'}).getByRole('button',{name:'Bài thực hành',exact:true}).click();
+  await student.getByRole('button',{name:'Nộp bài Kiểm tra phối hợp nhà ở',exact:true}).click();
+  await expect(student.getByRole('button',{name:/^Nộp bài Kiểm tra/})).toHaveCount(0);
+  await student.getByLabel('Dự án để nộp',{exact:true}).selectOption(studentProject.id);
+  await expect(student.getByLabel('Lượt kiểm tra kèm bài',{exact:true}).locator('option')).toHaveCount(2);
+  await student.getByLabel('Lượt kiểm tra kèm bài',{exact:true}).selectOption({index:1});
+  let release,started;const held=new Promise(done=>release=done),pending=new Promise(done=>started=done);
+  await student.route('**/api/practice/assignments/*/submissions',async route=>{const response=await route.fetch();started();await held;await route.fulfill({response});});
+  await student.getByRole('button',{name:'Xác nhận nộp bài',exact:true}).click();await pending;
+  await expect(student.getByRole('button',{name:'Hủy nộp bài',exact:true})).toBeDisabled();
+  await expect(student.getByRole('button',{name:/^Nộp bài Kiểm tra/})).toHaveCount(0);
+  release();
+  await expect(student.getByText('Đã nộp bài. Minh chứng của lần nộp này được giữ nguyên.',{exact:true})).toBeVisible();
+  await teacher.route('**/api/projects/ai/runtime',route=>route.fulfill({json:{configured:true,files_present:true}}));
+  await teacher.getByRole('button',{name:'Bài nộp cần chấm',exact:true}).click();
+  await teacher.getByRole('button',{name:/Chấm bài của Sinh viên thử nghiệm/}).click();
+  await expect(teacher.getByRole('region',{name:'Minh chứng bài nộp'})).toBeVisible();
+  await teacher.getByRole('button',{name:'Xem minh chứng 1 trong 3D',exact:true}).click();
+  await expect(teacher.getByTestId('clash-selection')).toContainText('Đang cô lập 2 cấu kiện');
+  const sourceEvent=teacher.waitForEvent('download');
+  await teacher.getByRole('button',{name:'Tải tệp nguồn',exact:true}).first().click();
+  assert.equal((await readFile(await (await sourceEvent).path(),'utf8')),JSON.parse(stdout)[0].content);
+  const inputs=teacher.getByLabel(/^Điểm tiêu chí /);assert.equal(await inputs.count(),3);
+  const aiFixture={proposal:{assessment:'findings',summary:'Kiểm tra minh chứng trước khi xác nhận điểm bài thực hành.',priorities:[{group_id:'g1',action:'verify_geometry',rationale:'Đối chiếu hình học và ý đồ thiết kế.'}],next_steps:['verify_geometry','review_design_intent'],citations:['stats','g1'],requires_review:true},evidence:{issue_count:2},metrics:{elapsed_seconds:1},model:{id:'Qwen/Qwen3-4B',fine_tuned:false},created_at:new Date().toISOString()};
+  let finishAi;
+  await teacher.route('**/api/practice/submissions/*/analysis',async route=>{await new Promise(done=>finishAi=done);await route.fulfill({json:aiFixture}).catch(()=>{});});
+  const aiButton=teacher.getByRole('button',{name:'Phân tích bài nộp bằng Qwen',exact:true});
+  await aiButton.click();await expect(inputs.first()).toBeDisabled();
+  await expect(teacher.locator('.practice-evidence .ifc-canvas')).toHaveCount(0);
+  await expect.poll(()=>!!finishAi).toBe(true);
+  await teacher.getByRole('button',{name:'Hủy phân tích Qwen',exact:true}).click();finishAi();
+  await expect(inputs.first()).toBeEnabled();await expect(teacher.getByText(aiFixture.proposal.summary,{exact:true})).toHaveCount(0);
+  await teacher.unroute('**/api/practice/submissions/*/analysis');
+  await teacher.route('**/api/practice/submissions/*/analysis',route=>route.fulfill({json:aiFixture}));
+  await aiButton.click();await expect(teacher.getByText(aiFixture.proposal.summary,{exact:true})).toBeVisible();
+  await expect(inputs.first()).toHaveValue('');
+  for(let index=0;index<await inputs.count();index++)await inputs.nth(index).fill(String([30,35,15][index]));
+  await teacher.getByLabel('Phản hồi cho sinh viên',{exact:true}).fill('Cần bổ sung giải thích ý đồ thiết kế ở nhóm kết cấu và cơ điện.');
+  await teacher.getByRole('button',{name:'Lưu nháp đánh giá',exact:true}).click();await expect(teacher.getByText('Đã lưu nháp đánh giá.',{exact:true})).toBeVisible();
+  await student.getByRole('button',{name:'Điểm và phản hồi',exact:true}).click();await expect(student.getByText('Chưa có kết quả được công bố.',{exact:true})).toBeVisible();
+  await teacher.getByRole('button',{name:'Công bố kết quả',exact:true}).click();await expect(teacher.getByText('Đã công bố kết quả cho sinh viên.',{exact:true})).toBeVisible();
+  await expect(teacher.getByRole('button',{name:'Lưu nháp đánh giá',exact:true})).toBeDisabled();
+  await teacher.screenshot({path:resolve(output,'teacher-desktop.png'),animations:'disabled'});
+  await student.getByRole('button',{name:'Bài nộp của tôi',exact:true}).click();await student.getByRole('button',{name:'Điểm và phản hồi',exact:true}).click();
+  await expect(student.getByText('80 / 100',{exact:true})).toBeVisible();
+  await student.getByRole('button',{name:/Xem kết quả Kiểm tra phối hợp nhà ở/}).click();
+  await expect(student.getByRole('button',{name:'Công bố kết quả',exact:true})).toHaveCount(0);
+  const download=student.waitForEvent('download');await student.getByRole('button',{name:'Tải kết quả JSON',exact:true}).click();assert.equal(JSON.parse(await readFile(await (await download).path(),'utf8')).grade.total_points,80);
+  await student.screenshot({path:resolve(output,'student-desktop.png'),animations:'disabled'});
+  await student.getByRole('button',{name:'Thông báo',exact:true}).click();
+  await expect(student.getByRole('region',{name:'Thông báo thực hành'})).toContainText('Điểm và phản hồi đã công bố');
+  await student.getByRole('button',{name:'Đánh dấu đã đọc Điểm và phản hồi đã công bố',exact:true}).click();
+  await expect(student.locator('.role-queue-item').filter({has:student.getByText('Điểm và phản hồi đã công bố',{exact:true})})).toContainText('Đã đọc');
+  const createdClass=(await api('/api/practice/classes',accounts.teacher)).items.find(item=>item.code==='REVIT-01');
+  const firstTask=(await api(`/api/practice/assignments?class_id=${createdClass.id}`,accounts.teacher)).items[0];
+  const secondTask=await api('/api/practice/assignments',accounts.teacher,{title:'Bài tiếp theo chưa nộp',instructions:'Minh chứng bài tiếp theo.',class_id:createdClass.id,student_ids:[],criteria:firstTask.criteria});
+  await teacher.getByRole('button',{name:'Lớp giảng dạy',exact:true}).click();
+  await teacher.getByRole('button',{name:'Mở lớp REVIT-01',exact:true}).click();
+  await teacher.getByRole('navigation',{name:'Nội dung lớp'}).getByRole('button',{name:'Bài thực hành',exact:true}).click();
+  await teacher.locator('.practice-assignment-grid article').filter({has:teacher.getByRole('heading',{name:'Kiểm tra phối hợp nhà ở',exact:true})}).getByRole('button',{name:'Mở bài nộp',exact:true}).click();
+  await expect(teacher.getByRole('region',{name:'Bảng điểm của lớp'})).toContainText('80 / 100');
+  let releaseGradebook,gradebookStarted;const gradebookHeld=new Promise(done=>releaseGradebook=done),gradebookPending=new Promise(done=>gradebookStarted=done);
+  await teacher.route('**/gradebook?*',async route=>{if(new URL(route.request().url()).searchParams.get('assignment_id')===secondTask.id){const response=await route.fetch();gradebookStarted();await gradebookHeld;await route.fulfill({response});}else await route.continue();});
+  await teacher.getByLabel('Chọn bài để xem bảng điểm',{exact:true}).selectOption(secondTask.id);await gradebookPending;
+  await expect(teacher.getByRole('region',{name:'Bảng điểm của lớp'}).locator('tbody tr')).toHaveCount(0);
+  releaseGradebook();await expect(teacher.getByRole('region',{name:'Bảng điểm của lớp'})).toContainText('Chưa nộp');
+  await teacher.unroute('**/gradebook?*');await teacher.getByLabel('Chọn bài để xem bảng điểm',{exact:true}).selectOption(firstTask.id);
+  await expect(teacher.getByRole('region',{name:'Bảng điểm của lớp'})).toContainText('80 / 100');
+  const gradesEvent=teacher.waitForEvent('download');await teacher.getByRole('button',{name:'Xuất bảng điểm Excel',exact:true}).click();
+  const gradesPath=resolve(output,'class-gradebook.xlsx');await (await gradesEvent).saveAs(gradesPath);
+  const gradeExcel=await promisify(execFile)(resolve('.venv/Scripts/python.exe'),['-c','import json,sys; from openpyxl import load_workbook; b=load_workbook(sys.argv[1]); print(json.dumps(list(b.active.values))); b.close()',gradesPath],{windowsHide:true});
+  const gradeRows=JSON.parse(gradeExcel.stdout);assert.equal(Number(gradeRows[1][gradeRows[0].indexOf('Điểm đã công bố')]),80);
+  await teacher.screenshot({path:resolve(output,'class-gradebook-desktop.png'),animations:'disabled'});
+  await teacher.getByRole('button',{name:'Về danh sách lớp giảng dạy',exact:true}).click();
+  await teacher.getByRole('button',{name:'Tạo lớp thực hành',exact:true}).click();
+  await teacher.getByLabel('Mã lớp thực hành',{exact:true}).fill('REVIT-02');
+  await teacher.getByLabel('Học kỳ / năm học',{exact:true}).fill('HK1 2026-2027');
+  await teacher.getByLabel('Tên lớp thực hành',{exact:true}).fill('Lớp khác không có bài thực hành');
+  await teacher.getByRole('button',{name:'Tạo lớp thực hành',exact:true}).click();
+  await teacher.getByRole('navigation',{name:'Nội dung lớp'}).getByRole('button',{name:'Bảng điểm',exact:true}).click();
+  await expect(teacher.getByText('Lớp chưa có bài thực hành. Giao bài hoặc gán bài cũ vào lớp để lập bảng điểm.',{exact:true})).toBeVisible();
+  await expect(teacher.getByRole('alert')).toHaveCount(0);
+  await teacher.getByRole('button',{name:'Về danh sách lớp giảng dạy',exact:true}).click();
+  await teacher.getByRole('button',{name:'Mở lớp REVIT-01',exact:true}).click();
+  await teacher.getByRole('button',{name:'Lưu trữ lớp',exact:true}).click();
+  await teacher.getByRole('dialog').getByRole('button',{name:'Xác nhận lưu trữ lớp',exact:true}).click();
+  await expect(teacher.getByRole('region',{name:'Thông tin lớp đang mở'})).toContainText('Lớp đã lưu trữ');
+  await student.getByRole('button',{name:'Lớp của tôi',exact:true}).click();
+  await expect(student.getByRole('button',{name:'Mở lớp REVIT-02',exact:true})).toHaveCount(0);
+  await student.getByRole('button',{name:'Đã lưu trữ',exact:true}).click();
+  await student.getByRole('button',{name:'Mở lớp REVIT-01',exact:true}).click();
+  await student.getByRole('navigation',{name:'Nội dung lớp'}).getByRole('button',{name:'Bài thực hành',exact:true}).click();
+  await expect(student.getByRole('button',{name:'Nộp bài Kiểm tra phối hợp nhà ở',exact:true})).toBeDisabled();
+  await student.screenshot({path:resolve(output,'class-student-desktop.png'),animations:'disabled'});
+  for(const [role,view] of [['admin',adminPage],['teacher',teacher],['student',student]]){await view.setViewportSize({width:390,height:844});assert.equal(await view.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,role);await view.screenshot({path:resolve(output,`${role}-mobile.png`),animations:'disabled'});}
+  result.checks.push('Admin account filters, provisioning, services, audit and sidebar fit','Teacher creates class, adds existing student, imports Excel roster and assigns frozen class rubric','Student submits an immutable run; cannot switch assignments while pending','Teacher opens both clash objects in 3D, downloads original source and saves draft','Student cannot see draft scores or grade controls','AI UI cancel/release/response uses a controlled fixture; native API checked separately','Teacher publishes 80/100','Student downloads published result','Class gradebook exports text-safe Excel','Student reads private notifications','Switching classes resets the gradebook selection','Archived class keeps evidence and blocks new submissions','Three roles at 390px without horizontal overflow');
+ }
+ assert.deepEqual(result.console_errors,[]);result.status='passed';
+}catch(error){result.status='failed';result.error=error.message;for(const [role,view]of testPages){await view.screenshot({path:resolve(output,`failure-${role}.png`)}).catch(()=>{});await writeFile(resolve(output,`failure-${role}.txt`),await view.locator('body').innerText().catch(()=>''));}throw error;}
+finally{
+ await browser?.close();await server?.close();
+ if(backend.exitCode===null){await promisify(execFile)(resolve('.venv/Scripts/python.exe'),['-c','import psutil,sys\np=psutil.Process(int(sys.argv[1])); assert "--desktop" in p.cmdline() and sys.argv[2] in p.cmdline()\nfor child in reversed(p.children(recursive=True)):\n try: child.kill()\n except psutil.NoSuchProcess: pass\np.kill()',String(backend.pid),String(process.pid)],{windowsHide:true});await new Promise(done=>{if(backend.exitCode!==null)done();else backend.once('exit',done);});}
+ await cleanLocalTestDatabase(database);result.isolated_database_removed=true;const target=await realpath(directory);assert.equal(target,resolve(await realpath('.local'),database));await rm(target,{recursive:true,force:true,maxRetries:3});
+ await writeFile(resolve(output,baseline?'baseline.json':'ui-result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+}

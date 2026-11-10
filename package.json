@@ -30,6 +30,8 @@
     "test:project-offline": "node frontend/tests/project-offline.mjs",
     "test:ai-ui": "node frontend/tests/ai-ui.mjs",
     "test:conclusions": "node frontend/tests/inspection-memory.mjs --conclusions",
+    "test:roles": "node frontend/tests/role-workspaces.mjs",
+    "test:classes": "node frontend/tests/role-workspaces.mjs --classes",
     "test:projects-native": "node frontend/tests/projects-native.mjs",
     "tauri": "tauri",
     "test:accounts": "node frontend/tests/accounts.mjs",

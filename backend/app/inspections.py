@@ -80,11 +80,13 @@ class UploadLimitMiddleware:
                     limit = 2 * 1024 * 1024 + 64 * 1024
                 elif scope["path"] == "/api/admin/provision/batches":
                     limit = 10 * 1024 * 1024
+                elif scope["path"].startswith("/api/practice/"):
+                    limit = 2*1024*1024+64*1024 if scope['path'].startswith('/api/practice/classes/') and scope['path'].endswith('/members/preview') else 1024*1024
                 if total > limit:
                     raise HTTPException(413, "file_too_large")
             return message
 
-        if scope["type"] == "http" and (scope["path"] in {"/api/inspections", "/api/inspections/clashes", "/api/inspections/alignments"} or scope["path"].startswith(("/api/projects", "/api/auth", "/api/admin"))):
+        if scope["type"] == "http" and (scope["path"] in {"/api/inspections", "/api/inspections/clashes", "/api/inspections/alignments"} or scope["path"].startswith(("/api/projects", "/api/auth", "/api/admin", "/api/practice/"))):
             await self.app(scope, bounded_receive, send)
         else:
             await self.app(scope, receive, send)
