@@ -29,12 +29,13 @@ export default function AccountGate({ children }: { children: (account: Account,
   }
   useEffect(() => {
     let alive = true;
+    const abort = new AbortController();
     setMode("loading"); setError("");
-    connectProcessor().then(async next => {
-      const status = await accountRequest<{ setup_required: boolean }>(next, "/api/auth/state");
+    connectProcessor(abort.signal).then(async next => {
+      const status = await accountRequest<{ setup_required: boolean }>(next, "/api/auth/state", undefined, abort.signal);
       if (alive) { setConnection(next); setMode(status.setup_required ? "setup" : "login"); }
     }).catch(reason => { if (alive) setError(reason instanceof Error ? reason.message : "Chưa kết nối được hệ thống tài khoản."); });
-    return () => { alive = false; };
+    return () => { alive = false; abort.abort(); };
   }, [attempt]);
   useEffect(() => {
     function expire() { accept(null); setError("Phiên đăng nhập đã hết hạn hoặc bị thu hồi. Hãy đăng nhập lại."); }
@@ -91,7 +92,7 @@ export default function AccountGate({ children }: { children: (account: Account,
       <div className="account-form-wrap"><div className="account-mobile-brand">BI<span>BIM INSIGHT</span></div><span className="account-eyebrow">{mode==="setup"?"THIẾT LẬP KHÔNG GIAN CỦA BẠN":"CHÀO BẠN ĐẾN VỚI BIM INSIGHT"}</span>
         {!forced&&(mode==="login"||mode==="register")&&<div className="account-tabs" aria-label="Chọn đăng nhập hoặc đăng ký"><button type="button" aria-label="Chuyển sang đăng nhập" aria-pressed={mode==="login"} disabled={busy} onClick={()=>switchMode("login")}>Đăng nhập</button><button type="button" aria-label="Chuyển sang đăng ký" aria-pressed={mode==="register"} disabled={busy} onClick={()=>switchMode("register")}>Đăng ký</button></div>}
         <h2>{title}</h2><p className="account-description">{forced?`${user?.display_name}, hãy thay mật khẩu tạm được cấp trước khi sử dụng BIM Insight.`:mode==="forgot"?"Nhận mã xác nhận qua email đã gắn với tài khoản và chọn mật khẩu mới.":mode === "setup" ? "Bạn sẽ quản lý tài khoản và phân quyền. Hồ sơ đã có trên máy được giữ nguyên và nhận vào tài khoản này." : mode === "register" ? "Một tài khoản cho những dự án của riêng bạn. Nhập hồ sơ, khám phá mô hình và chia sẻ để nhận góp ý." : "Tiếp tục công việc, khám phá mô hình và phối hợp hồ sơ của bạn."}</p>
-        {forced&&connection?<ForcedPassword connection={connection} initialPassword={temporaryPassword.current} onSession={accept} onLogout={()=>void logoutForced().catch(()=>{})}/>:mode==="forgot"&&connection?<RecoveryForm connection={connection} onBack={()=>switchMode("login")}/>:mode === "loading" ? <div className="account-connection" role="status">{error ? "Chưa kết nối được hệ thống tài khoản." : "Đang kết nối hệ thống tài khoản…"}</div> : <form key={mode} className="account-fields" onSubmit={event => { event.preventDefault(); void submit(); }}>
+        {forced&&connection?<ForcedPassword connection={connection} initialPassword={temporaryPassword.current} onSession={accept} onLogout={()=>void logoutForced().catch(()=>{})}/>:mode==="forgot"&&connection?<RecoveryForm connection={connection} onBack={()=>switchMode("login")}/>:mode === "loading" ? <div className="account-connection" role="status">{error ? "Chưa kết nối được hệ thống tài khoản." : (import.meta.env.VITE_API_BASE_URL ? "Đang kết nối hệ thống. Máy chủ miễn phí có thể cần khoảng một phút để khởi động; trang sẽ tự thử lại." : "Đang kết nối hệ thống tài khoản…")}</div> : <form key={mode} className="account-fields" onSubmit={event => { event.preventDefault(); void submit(); }}>
           {mode !== "login" && <label>Tên hiển thị<input aria-label="Tên hiển thị" value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={80} autoComplete="name" required disabled={busy} /></label>}
           <label>Tên đăng nhập<div className="account-input"><UserRound size={18} aria-hidden="true" /><input aria-label="Tên đăng nhập" value={username} onChange={event => setUsername(event.target.value.toLowerCase())} pattern={mode==="login"?undefined:"[a-z0-9][a-z0-9_.\\-]{2,47}"} minLength={3} maxLength={mode==="login"?254:48} autoComplete="username" autoCapitalize="none" spellCheck={false} required disabled={busy} /></div><small>{mode==="login"?"Mã giảng viên, mã sinh viên, tên đăng nhập hoặc email đã xác nhận.":"3–48 ký tự: chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang."}</small></label>
           {mode==="register"&&<label>Email đăng ký<input type="email" value={registrationEmail} onChange={event=>setRegistrationEmail(event.target.value)} maxLength={254} autoComplete="email" disabled={busy}/><small>Bạn xác nhận email trong Tài khoản của tôi để đăng nhập và khôi phục mật khẩu.</small></label>}

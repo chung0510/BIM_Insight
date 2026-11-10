@@ -345,19 +345,42 @@ export type ClashReport = {
   drawing_link?: LinkResult | null;
 };
 export type RunSummary = Pick<ClashReport, "id" | "status" | "verdict" | "dataset" | "created_at" | "revision" | "parameters"> & { issue_count: number };
-export async function connectProcessor(): Promise<Connection> {
+export async function connectProcessor(signal?: AbortSignal): Promise<Connection> {
+  signal?.throwIfAborted();
   const connection = isTauri()
     ? await invoke<Pick<Connection, "base_url" | "token">>("backend_connection")
-    : { base_url: "", token: "" };
-  const response = await fetch(`${connection.base_url}/api/health`, {
-    headers: authHeaders(connection),
-  });
-  const health = await response.json();
-  if (!response.ok || !health.capabilities?.file_inspection || !health.processing_limits || !health.file_limits)
-    throw new Error(
-      "Bộ xử lý chưa sẵn sàng. Hãy mở lại ứng dụng hoặc kết nối lại.",
-    );
-  return { ...connection, file_limits: health.file_limits, processing_limits: health.processing_limits, deployment: health.deployment };
+    : { base_url: (import.meta.env?.VITE_API_BASE_URL || "").replace(/\/$/, ""), token: "" };
+  if (connection.base_url) {
+    const url = new URL(connection.base_url);
+    if ((url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)))
+      || url.username || url.password || url.pathname !== "/" || url.search || url.hash)
+      throw new Error("Địa chỉ máy chủ chưa hợp lệ. Hãy kiểm tra cấu hình website.");
+  }
+  const remote = connection.base_url.startsWith("https://");
+  const deadline = Date.now() + (remote ? 120000 : 0);
+  while (true) {
+    signal?.throwIfAborted();
+    let temporary = true;
+    try {
+      const timeout = AbortSignal.timeout(10000);
+      const response = await fetch(`${connection.base_url}/api/health`, {
+        headers: authHeaders(connection), signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      temporary = [502, 503, 504].includes(response.status)
+        || (response.ok && !response.headers.get("content-type")?.includes("application/json"));
+      if (!response.ok || temporary) throw new Error("Bộ xử lý chưa sẵn sàng. Hãy thử kết nối lại.");
+      const health = await response.json();
+      if (!health.capabilities?.file_inspection || !health.processing_limits || !health.file_limits)
+        throw new Error("Bộ xử lý chưa sẵn sàng. Hãy thử kết nối lại.");
+      return { ...connection, file_limits: health.file_limits, processing_limits: health.processing_limits, deployment: health.deployment };
+    } catch (reason) {
+      signal?.throwIfAborted();
+      if (!remote || !temporary || Date.now() >= deadline)
+        throw reason instanceof TypeError || (reason instanceof DOMException && reason.name === "TimeoutError")
+          ? new Error("Chưa kết nối được hệ thống. Hãy chờ một lát rồi kết nối lại.") : reason;
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
 }
 export function inspectFile(
   connection: Connection,

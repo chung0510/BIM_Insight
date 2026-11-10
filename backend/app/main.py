@@ -52,6 +52,7 @@ def create_app(
     web_origin: str | None = None,
     initial_admin: Registration | None = None,
     web_demo: bool = False,
+    frontend_origin: str | None = None,
 ) -> FastAPI:
     if len(api_token) < 32:
         raise ValueError("A local session token of at least 32 characters is required")
@@ -77,6 +78,8 @@ def create_app(
     ]
     if web_origin:
         origins = [web_origin]
+        if frontend_origin:
+            origins.append(frontend_origin)
 
     @asynccontextmanager
     async def lifespan(_app):
