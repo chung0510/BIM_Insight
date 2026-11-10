@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: bim-insight-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: BIM_MONGODB_URI
+        sync: false
+      - key: BIM_DATABASE
+        value: bim_insight_render_demo
+      - key: BIM_ADMIN_USERNAME
+        sync: false
+      - key: BIM_ADMIN_PASSWORD
+        sync: false
+      - key: BIM_SETTINGS_KEY
+        generateValue: true
+      - key: BIM_DATA_DIR
+        value: /tmp/bim-insight
+      - key: BIM_WEB_DEMO
+        value: "1"
+      - key: BIM_UPLOAD_LIMIT_MB
+        value: "20"
+      - key: BIM_WORKER_MEMORY_BYTES
+        value: "268435456"

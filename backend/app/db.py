@@ -1,4 +1,6 @@
 import ctypes
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -53,8 +55,20 @@ def connect_database(uri: str, database_name: str):
 
 
 def _dpapi(data, *, decrypt):
+    secret = os.getenv("BIM_SETTINGS_KEY")
+    prefix = b"BIM1:"
+    if (not decrypt and secret is not None) or (decrypt and data.startswith(prefix)):
+        if not secret or len(secret) < 32:
+            raise ValueError("BIM_SETTINGS_KEY must contain at least 32 characters")
+        from cryptography.fernet import Fernet, InvalidToken
+
+        cipher = Fernet(base64.urlsafe_b64encode(hashlib.sha256(secret.encode("utf-8")).digest()))
+        try:
+            return cipher.decrypt(data[len(prefix):]) if decrypt else prefix + cipher.encrypt(data)
+        except InvalidToken:
+            raise ValueError("Cannot access the private settings with this key") from None
     if os.name != "nt":
-        raise ValueError("Windows is required for the private database configuration")
+        raise ValueError("BIM_SETTINGS_KEY is required for private settings outside Windows")
 
     class Blob(ctypes.Structure):
         _fields_ = [("size", ctypes.c_ulong), ("data", ctypes.POINTER(ctypes.c_ubyte))]
