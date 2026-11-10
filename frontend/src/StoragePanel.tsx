@@ -57,7 +57,7 @@ export default function StoragePanel({ connection, projectId, locked }: { connec
       <li>Tạo S3 token <strong>Object Read &amp; Write</strong>, chỉ cho bucket đó.</li>
       <li>Chạy cấu hình R2 theo README trên máy, nhập endpoint và hai key trong cửa sổ nhập ẩn.</li>
       <li>Mở lại app rồi chọn dự án và bấm “Đồng bộ dự án lên R2”.</li>
-    </ol><p className="project-muted">Key được mã hóa bằng tài khoản Windows đang dùng. Giữ lại bản sao key của bạn để cấu hình trên máy khác.</p></details>}
+    </ol><p className="project-muted">Key được mã hóa tại bộ xử lý. Giữ lại bản sao key của bạn để cấu hình trên máy khác.</p></details>}
     {message && <p role="status" className="cloud-result">{message}</p>}
     {error && <p className="coord-error" role="alert">{error}</p>}
   </section>;

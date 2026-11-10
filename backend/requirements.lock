@@ -5,9 +5,11 @@ anyio==4.15.1
 boto3==1.43.122
 botocore==1.43.122
 certifi==2026.10.23
+cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0
 colorama==0.4.6
+cryptography==47.0.0
 dnspython==2.9.1
 ezdxf==1.4.5
 fastapi==0.162.0
@@ -33,6 +35,7 @@ pefile==2024.8.26
 pillow==13.0.0
 pluggy==1.7.0
 psutil==7.2.2
+pycparser==3.12
 pydantic==2.14.2
 pydantic_core==2.50.2
 Pygments==2.21.0

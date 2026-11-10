@@ -2,7 +2,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 export type FileKind = "ifc" | "pdf" | "dxf" | "dwg";
 export type ProcessingLimits = { queue_files: number; open_files: number; clash_models: number; clash_elements: number; clash_issues: number; timeout_seconds: number; pdf_pages: number; viewer_bytes: number };
-export type Connection = { base_url: string; token: string; file_limits: Record<FileKind, number>; processing_limits: ProcessingLimits };
+export type Connection = { base_url: string; token: string; file_limits: Record<FileKind, number>; processing_limits: ProcessingLimits; deployment?: "desktop" | "web" | "web_demo" };
 export type ProcessingStats = { elapsed_seconds?: number; memory_bytes?: number; peak_memory_bytes?: number; memory_limit_bytes?: number; system_available_bytes?: number; last_progress?: {phase: string} | null };
 export type ProcessingProgress = ProcessingStats & { phase: string; done?: number; total?: number };
 let accountToken = "";
@@ -357,7 +357,7 @@ export async function connectProcessor(): Promise<Connection> {
     throw new Error(
       "Bộ xử lý chưa sẵn sàng. Hãy mở lại ứng dụng hoặc kết nối lại.",
     );
-  return { ...connection, file_limits: health.file_limits, processing_limits: health.processing_limits };
+  return { ...connection, file_limits: health.file_limits, processing_limits: health.processing_limits, deployment: health.deployment };
 }
 export function inspectFile(
   connection: Connection,

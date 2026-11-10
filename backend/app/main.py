@@ -34,7 +34,7 @@ from app.project_cleanup import project_data_lock
 from app.ai import AiService, AdviceRequest, AdviceFeedback, configured_ai
 from app.run_conclusions import RunConclusions
 from app.access import AccessStore, actor_context
-from app.access_routes import attach_access_routes
+from app.access_routes import Registration, attach_access_routes
 from app.account_management_routes import attach_account_management_routes
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "inspections"
@@ -49,6 +49,9 @@ def create_app(
     upload_limit_bytes: int = FILE_LIMITS["ifc"],
     inspection_timeout: float = INSPECTION_TIMEOUT,
     session_id: str | None = None,
+    web_origin: str | None = None,
+    initial_admin: Registration | None = None,
+    web_demo: bool = False,
 ) -> FastAPI:
     if len(api_token) < 32:
         raise ValueError("A local session token of at least 32 characters is required")
@@ -72,10 +75,20 @@ def create_app(
         "http://localhost:1420", "http://127.0.0.1:1420", "tauri://localhost",
         "http://tauri.localhost", "https://tauri.localhost",
     ]
+    if web_origin:
+        origins = [web_origin]
 
     @asynccontextmanager
     async def lifespan(_app):
         try:
+            if web_origin:
+                def ensure_admin():
+                    if access.state()["setup_required"]:
+                        if initial_admin is None:
+                            raise ValueError("Initial web administrator is required")
+                        session = access.create_account(initial_admin, bootstrap=True)
+                        access.logout(session["session_token"])
+                await asyncio.to_thread(ensure_admin)
             yield
         finally:
             mongo.close()
@@ -87,7 +100,10 @@ def create_app(
         CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "X-BIM-Session"],
     )
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]"])
+    allowed_hosts = ["localhost", "127.0.0.1", "[::1]"]
+    if web_origin:
+        allowed_hosts.append(urlsplit(web_origin).hostname)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     @app.middleware("http")
     async def guard_origin(request: Request, call_next):
@@ -96,8 +112,10 @@ def create_app(
             return JSONResponse(status_code=403, content={"detail": "origin_not_allowed"})
         if request.url.path.startswith(("/api/inspections", "/api/projects", "/api/auth", "/api/admin", "/api/ready")) and request.method != "OPTIONS":
             scheme, _, credential = request.headers.get("authorization", "").partition(" ")
-            if scheme.lower() != "bearer" or not compare_digest(credential.encode("utf-8"), api_token.encode("utf-8")):
+            if not web_origin and (scheme.lower() != "bearer" or not compare_digest(credential.encode("utf-8"), api_token.encode("utf-8"))):
                 return JSONResponse(status_code=401, content={"detail": "invalid_session_token"})
+            if web_origin and request.url.path == "/api/auth/bootstrap":
+                return JSONResponse(status_code=403, content={"detail": "setup_already_completed"})
             public = {"/api/auth/state", "/api/auth/bootstrap", "/api/auth/register", "/api/auth/login", "/api/auth/recovery/request", "/api/auth/recovery/confirm", "/api/ready"}
             if request.url.path not in public:
                 try:
@@ -124,6 +142,9 @@ def create_app(
     attach_account_management_routes(app, access)
 
     def authorize(credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False))):
+        if web_origin:
+            # Account authentication and project permissions are enforced by guard_origin and routes.
+            return
         if credentials is None or not compare_digest(credentials.credentials.encode("utf-8"), api_token.encode("utf-8")):
             raise HTTPException(status_code=401, detail="invalid_session_token")
 
@@ -135,6 +156,7 @@ def create_app(
     def health():
         return {
             "status": "ok", "version": "0.12.0",
+            "deployment": "web_demo" if web_demo else "web" if web_origin else "desktop",
             "capabilities": {"clash_detection": "cross_source_ifc_geometry", "trained_ai": "not_verified", "file_inspection": True, "cad_preview": True, "ifc_viewer": True, "grid_alignment": True},
             "file_limits": {kind: min(limit, upload_limit_bytes) for kind, limit in FILE_LIMITS.items()},
             "processing_limits": {**processing_limits(), "timeout_seconds": inspection_timeout},

@@ -20,6 +20,7 @@ dependencies = [
   "pillow>=13,<14",
   "openpyxl>=3.1.5,<4",
   "defusedxml>=0.7,<1",
+  "cryptography>=46,<48",
 ]
 
 [project.optional-dependencies]

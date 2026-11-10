@@ -1,0 +1,21 @@
+# Only application source enters the build context; local data and secrets stay outside.
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!frontend/
+!frontend/package.json
+!frontend/index.html
+!frontend/tsconfig*.json
+!frontend/vite.config.ts
+!frontend/src/
+!frontend/src/**
+!frontend/public/
+!frontend/public/**
+!backend/
+!backend/pyproject.toml
+!backend/requirements.lock
+!backend/app/
+!backend/app/**
+**/__pycache__/
+**/*.pyc

@@ -1,5 +1,7 @@
 # BIM Insight — Phối hợp và kiểm tra hồ sơ
 
+**Bản web thử nghiệm Render Free:** xem [hướng dẫn deploy](docs/DEPLOY_RENDER.md) và Blueprint [render.yaml](render.yaml). Bản này có giới hạn upload 20 MiB, tệp lưu tạm và chưa có DWG/Qwen/Gmail SMTP.
+
 ## Kiểm tra DWG/DXF, IFC, PDF và va chạm 3D ngay trong app
 
 **Kết luận tổng thể · Qwen3-4B · 09/11/2026:** mở lượt kiểm tra đã lưu, tìm khung **Kết luận tổng thể** phía trên bộ lọc/bảng rồi bấm **Tạo kết luận tổng thể**. App thống kê mọi cặp đã lưu, kể cả các trang chưa mở; bộ lọc trên bảng không làm đổi phạm vi. Qwen nhận mức tổng hợp và tối đa 6 nhóm tiêu biểu để viết nhận định, ưu tiên xử lý và bước tiếp theo. Số liệu chính xác và giới hạn hình học được hiển thị riêng. Không cần chạy lại IFC hoặc thêm DXF.
